@@ -29,7 +29,7 @@ class BigTimePicker extends StatelessWidget {
               style: GoogleFonts.spaceGrotesk(
                 fontSize: 72,
                 fontWeight: FontWeight.w900,
-                color: Colors.white,
+                color: BedBreakerTheme.textPrimary,
                 height: 1.0,
               ),
             ),
@@ -47,7 +47,7 @@ class BigTimePicker extends StatelessWidget {
               style: GoogleFonts.spaceGrotesk(
                 fontSize: 72,
                 fontWeight: FontWeight.w900,
-                color: Colors.white,
+                color: BedBreakerTheme.textPrimary,
                 height: 1.0,
               ),
             ),
@@ -114,7 +114,7 @@ class RepeatDaysSelector extends StatelessWidget {
                     style: GoogleFonts.spaceGrotesk(
                       fontSize: 13,
                       fontWeight: FontWeight.w800,
-                      color: selected ? Colors.white : BedBreakerTheme.textSecondary,
+                      color: selected ? BedBreakerTheme.textPrimary : BedBreakerTheme.textSecondary,
                     ),
                   ),
                 ),
@@ -216,7 +216,7 @@ class MissionTypeSelector extends StatelessWidget {
           selected: !isDistance,
           onTap: () {
             onTypeChanged(false);
-            if (!isDistance) onPinLocation();
+            onPinLocation();
           },
           trailing: !isDistance
               ? GestureDetector(
@@ -306,7 +306,7 @@ class _MissionOption extends StatelessWidget {
                     style: GoogleFonts.spaceGrotesk(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
-                      color: selected ? Colors.white : BedBreakerTheme.textSecondary,
+                      color: selected ? BedBreakerTheme.textPrimary : BedBreakerTheme.textSecondary,
                     ),
                   ),
                   Text(
@@ -352,7 +352,7 @@ class SaveAlarmButton extends StatelessWidget {
             style: GoogleFonts.spaceGrotesk(
               fontSize: 17,
               fontWeight: FontWeight.w800,
-              color: Colors.white,
+              color: BedBreakerTheme.textPrimary,
             ),
           ),
         ),

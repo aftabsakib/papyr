@@ -141,7 +141,7 @@ class _CompletionRing extends StatelessWidget {
             style: GoogleFonts.spaceGrotesk(
               fontSize: 14,
               fontWeight: FontWeight.w900,
-              color: Colors.white,
+              color: BedBreakerTheme.textPrimary,
             ),
           ),
         ],
@@ -273,7 +273,7 @@ class HistoryTile extends StatelessWidget {
                   style: GoogleFonts.spaceGrotesk(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: Colors.white,
+                    color: BedBreakerTheme.textPrimary,
                   ),
                 ),
                 Text(

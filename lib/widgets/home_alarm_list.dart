@@ -40,7 +40,7 @@ class AlarmCard extends StatelessWidget {
           border: Border.all(
             color: alarm.isActive
                 ? BedBreakerTheme.accent.withValues(alpha:0.25)
-                : Colors.transparent,
+                : BedBreakerTheme.transparent,
           ),
         ),
         child: Padding(
@@ -57,7 +57,7 @@ class AlarmCard extends StatelessWidget {
                       style: GoogleFonts.spaceGrotesk(
                         fontSize: 48,
                         fontWeight: FontWeight.w900,
-                        color: alarm.isActive ? Colors.white : BedBreakerTheme.textSecondary,
+                        color: alarm.isActive ? BedBreakerTheme.textPrimary : BedBreakerTheme.textSecondary,
                         height: 1.0,
                       ),
                     ),
@@ -109,7 +109,7 @@ class _RepeatDaysRow extends StatelessWidget {
           decoration: BoxDecoration(
             color: active && isActive
                 ? BedBreakerTheme.accent.withValues(alpha:0.2)
-                : Colors.transparent,
+                : BedBreakerTheme.transparent,
             borderRadius: BorderRadius.circular(6),
             border: Border.all(
               color: active && isActive

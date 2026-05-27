@@ -54,7 +54,7 @@ class _PulsingTimeDisplayState extends State<PulsingTimeDisplay>
             style: GoogleFonts.spaceGrotesk(
               fontSize: 88,
               fontWeight: FontWeight.w900,
-              color: Colors.white,
+              color: BedBreakerTheme.textPrimary,
               height: 1.0,
             ),
           ),
@@ -121,7 +121,7 @@ class MissionInstructionCard extends StatelessWidget {
                   style: GoogleFonts.spaceGrotesk(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                    color: BedBreakerTheme.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -232,7 +232,7 @@ class _RingingGlowBackgroundState extends State<RingingGlowBackground>
             radius: 1.2,
             colors: [
               BedBreakerTheme.accent.withValues(alpha:_opacity.value),
-              Colors.transparent,
+              BedBreakerTheme.transparent,
             ],
           ),
         ),

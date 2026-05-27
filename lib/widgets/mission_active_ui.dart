@@ -59,7 +59,7 @@ class DistanceRing extends StatelessWidget {
                   style: GoogleFonts.spaceGrotesk(
                     fontSize: 48,
                     fontWeight: FontWeight.w900,
-                    color: Colors.white,
+                    color: BedBreakerTheme.textPrimary,
                     height: 1.0,
                   ),
                 ),
@@ -162,14 +162,14 @@ class _CameraUnlockButtonState extends State<CameraUnlockButton>
             ),
             icon: Icon(
               widget.unlocked ? Icons.camera_alt_rounded : Icons.lock_outline,
-              color: widget.unlocked ? Colors.black : BedBreakerTheme.textSecondary,
+              color: widget.unlocked ? BedBreakerTheme.onSuccess : BedBreakerTheme.textSecondary,
             ),
             label: Text(
               widget.unlocked ? 'Take Photo — Stop Alarm' : 'Get closer to unlock',
               style: GoogleFonts.spaceGrotesk(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
-                color: widget.unlocked ? Colors.black : BedBreakerTheme.textSecondary,
+                color: widget.unlocked ? BedBreakerTheme.onSuccess : BedBreakerTheme.textSecondary,
               ),
             ),
           ),

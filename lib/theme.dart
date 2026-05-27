@@ -97,4 +97,7 @@ class BedBreakerTheme {
   static const danger = _danger;
   static const success = _success;
   static const textSecondary = _textSecondary;
+  static const textPrimary = _textPrimary;
+  static const onSuccess = Colors.black;
+  static const transparent = Colors.transparent;
 }
