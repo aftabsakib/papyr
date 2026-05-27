@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'models/alarm.dart';
 import 'models/alarm_history.dart';
+import 'theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,7 +21,7 @@ class BedBreakerApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'BedBreaker',
-      theme: ThemeData.dark(useMaterial3: true),
+      theme: BedBreakerTheme.dark,
       home: const Scaffold(
         body: Center(child: Text('BedBreaker', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900))),
       ),
