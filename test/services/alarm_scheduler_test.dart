@@ -51,5 +51,17 @@ void main() {
       expect(next?.weekday, DateTime.wednesday);
       expect(next?.hour, 6);
     });
+
+    test('repeating alarm wraps to same weekday next week when today has passed', () {
+      // Wednesday at 7am — alarm fires on Wednesday at 6am (already passed today)
+      final now = DateTime(2026, 5, 27, 7, 0); // Wednesday
+      final repeatDays = [false, false, true, false, false, false, false]; // Wed only
+      final alarm = makeAlarm(hour: 6, minute: 0, repeatDays: repeatDays);
+      final next = AlarmScheduler.nextFireTime(alarm, now);
+      expect(next?.weekday, DateTime.wednesday);
+      expect(next?.isAfter(now), isTrue);
+      // Should be exactly 7 days ahead (next Wednesday)
+      expect(next?.difference(DateTime(2026, 5, 27)).inDays, 7);
+    });
   });
 }

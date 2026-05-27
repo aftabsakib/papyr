@@ -21,7 +21,7 @@ class GpsService {
     return distance <= radiusMeters;
   }
 
-  Stream<Position> trackLocation() {
+  static Stream<Position> trackLocation() {
     return Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
@@ -30,7 +30,7 @@ class GpsService {
     ).where((pos) => pos.accuracy <= _minAccuracyMeters);
   }
 
-  Future<Position?> getCurrentPosition() async {
+  static Future<Position?> getCurrentPosition() async {
     try {
       return await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(

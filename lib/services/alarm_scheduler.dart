@@ -26,21 +26,24 @@ class AlarmScheduler {
       return candidate;
     }
 
-    for (int i = 0; i < 7; i++) {
+    for (int i = 0; i < 8; i++) {
       final candidate = DateTime(now.year, now.month, now.day, alarm.hour, alarm.minute)
           .add(Duration(days: i));
       final dayIndex = candidate.weekday - 1;
-      if (alarm.repeatDays[dayIndex] && candidate.isAfter(now)) {
+      if (alarm.repeatDays[dayIndex] && !candidate.isBefore(now)) {
         return candidate;
       }
     }
     return null;
   }
 
+  static int _alarmIntId(String uuid) =>
+      int.parse(uuid.replaceAll('-', '').substring(0, 8), radix: 16);
+
   static Future<void> scheduleAlarm(Alarm alarm) async {
     final next = nextFireTime(alarm);
     if (next == null) return;
-    final alarmId = alarm.id.hashCode.abs();
+    final alarmId = _alarmIntId(alarm.id);
     await AndroidAlarmManager.oneShotAt(
       next,
       alarmId,
@@ -52,7 +55,7 @@ class AlarmScheduler {
   }
 
   static Future<void> cancelAlarm(Alarm alarm) async {
-    await AndroidAlarmManager.cancel(alarm.id.hashCode.abs());
+    await AndroidAlarmManager.cancel(_alarmIntId(alarm.id));
   }
 
   @pragma('vm:entry-point')
