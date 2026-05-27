@@ -72,3 +72,42 @@ class AlarmAdapter extends TypeAdapter<Alarm> {
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
+
+class MissionTypeAdapter extends TypeAdapter<MissionType> {
+  @override
+  final int typeId = 2;
+
+  @override
+  MissionType read(BinaryReader reader) {
+    switch (reader.readByte()) {
+      case 0:
+        return MissionType.distance;
+      case 1:
+        return MissionType.pin;
+      default:
+        return MissionType.distance;
+    }
+  }
+
+  @override
+  void write(BinaryWriter writer, MissionType obj) {
+    switch (obj) {
+      case MissionType.distance:
+        writer.writeByte(0);
+        break;
+      case MissionType.pin:
+        writer.writeByte(1);
+        break;
+    }
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MissionTypeAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}

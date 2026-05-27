@@ -2,7 +2,13 @@ import 'package:hive/hive.dart';
 
 part 'alarm.g.dart';
 
-enum MissionType { distance, pin }
+@HiveType(typeId: 2)
+enum MissionType {
+  @HiveField(0)
+  distance,
+  @HiveField(1)
+  pin,
+}
 
 @HiveType(typeId: 0)
 class Alarm extends HiveObject {

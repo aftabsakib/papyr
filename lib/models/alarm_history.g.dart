@@ -54,3 +54,47 @@ class AlarmHistoryAdapter extends TypeAdapter<AlarmHistory> {
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
+
+class AlarmStatusAdapter extends TypeAdapter<AlarmStatus> {
+  @override
+  final int typeId = 3;
+
+  @override
+  AlarmStatus read(BinaryReader reader) {
+    switch (reader.readByte()) {
+      case 0:
+        return AlarmStatus.completed;
+      case 1:
+        return AlarmStatus.cheated;
+      case 2:
+        return AlarmStatus.missed;
+      default:
+        return AlarmStatus.completed;
+    }
+  }
+
+  @override
+  void write(BinaryWriter writer, AlarmStatus obj) {
+    switch (obj) {
+      case AlarmStatus.completed:
+        writer.writeByte(0);
+        break;
+      case AlarmStatus.cheated:
+        writer.writeByte(1);
+        break;
+      case AlarmStatus.missed:
+        writer.writeByte(2);
+        break;
+    }
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AlarmStatusAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}

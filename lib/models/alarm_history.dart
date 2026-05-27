@@ -2,7 +2,15 @@ import 'package:hive/hive.dart';
 
 part 'alarm_history.g.dart';
 
-enum AlarmStatus { completed, cheated, missed }
+@HiveType(typeId: 3)
+enum AlarmStatus {
+  @HiveField(0)
+  completed,
+  @HiveField(1)
+  cheated,
+  @HiveField(2)
+  missed,
+}
 
 @HiveType(typeId: 1)
 class AlarmHistory extends HiveObject {
