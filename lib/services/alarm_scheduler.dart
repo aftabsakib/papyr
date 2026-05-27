@@ -84,7 +84,6 @@ class AlarmScheduler {
   @pragma('vm:entry-point')
   static Future<void> _onAlarmFired(int id, Map<String, dynamic> params) async {
     WidgetsFlutterBinding.ensureInitialized();
-    DartPluginRegistrant.ensureInitialized();
 
     final plugin = FlutterLocalNotificationsPlugin();
     await plugin.initialize(
