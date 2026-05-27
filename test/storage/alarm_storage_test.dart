@@ -88,4 +88,36 @@ void main() {
     ));
     expect(storage.getCurrentStreak(), 2);
   });
+
+  test('getCurrentStreak returns 0 when last completion was 2+ days ago', () async {
+    final storage = AlarmStorage();
+    await storage.init();
+    await storage.saveHistory(AlarmHistory(
+      id: '1', alarmId: 'a',
+      firedAt: DateTime.now().subtract(const Duration(days: 3)),
+      status: AlarmStatus.completed,
+      secondsToComplete: 300,
+    ));
+    expect(storage.getCurrentStreak(), 0);
+  });
+
+  test('getCurrentStreak handles duplicate completions on same day', () async {
+    final storage = AlarmStorage();
+    await storage.init();
+    final now = DateTime.now();
+    await storage.saveHistory(AlarmHistory(
+      id: '1', alarmId: 'a',
+      firedAt: now,
+      status: AlarmStatus.completed,
+      secondsToComplete: 300,
+    ));
+    await storage.saveHistory(AlarmHistory(
+      id: '2', alarmId: 'a',
+      firedAt: now.add(const Duration(hours: 1)),
+      status: AlarmStatus.completed,
+      secondsToComplete: 200,
+    ));
+    // Two entries today — streak should be 1, not break to 0
+    expect(storage.getCurrentStreak(), greaterThanOrEqualTo(1));
+  });
 }

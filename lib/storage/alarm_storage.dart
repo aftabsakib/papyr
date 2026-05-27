@@ -6,8 +6,12 @@ class AlarmStorage {
   static const _alarmsBox = 'alarms';
   static const _historyBox = 'alarm_history';
 
-  late Box<Alarm> _alarms;
-  late Box<AlarmHistory> _history;
+  static final AlarmStorage _instance = AlarmStorage._internal();
+  factory AlarmStorage() => _instance;
+  AlarmStorage._internal();
+
+  Box<Alarm>? _alarms;
+  Box<AlarmHistory>? _history;
 
   Future<void> init() async {
     _alarms = await Hive.openBox<Alarm>(_alarmsBox);
@@ -15,34 +19,46 @@ class AlarmStorage {
   }
 
   Future<void> saveAlarm(Alarm alarm) async {
-    await _alarms.put(alarm.id, alarm);
+    await _alarms!.put(alarm.id, alarm);
   }
 
   Future<void> deleteAlarm(String id) async {
-    await _alarms.delete(id);
+    await _alarms!.delete(id);
   }
 
-  List<Alarm> getAllAlarms() => _alarms.values.toList();
+  List<Alarm> getAllAlarms() => _alarms!.values.toList();
 
-  Alarm? getAlarm(String id) => _alarms.get(id);
+  Alarm? getAlarm(String id) => _alarms!.get(id);
 
   Future<void> saveHistory(AlarmHistory history) async {
-    await _history.put(history.id, history);
+    await _history!.put(history.id, history);
   }
 
   List<AlarmHistory> getHistoryForAlarm(String alarmId) =>
-      _history.values.where((h) => h.alarmId == alarmId).toList();
+      _history!.values.where((h) => h.alarmId == alarmId).toList();
 
-  List<AlarmHistory> getAllHistory() => _history.values.toList();
+  List<AlarmHistory> getAllHistory() => _history!.values.toList();
 
   int getTotalCheats() =>
-      _history.values.where((h) => h.status == AlarmStatus.cheated).length;
+      _history!.values.where((h) => h.status == AlarmStatus.cheated).length;
 
   int getCurrentStreak() {
-    final completed = _history.values
+    final completed = _history!.values
         .where((h) => h.status == AlarmStatus.completed)
         .toList()
       ..sort((a, b) => b.firedAt.compareTo(a.firedAt));
+
+    if (completed.isEmpty) return 0;
+
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+    final firstDate = DateTime(
+      completed.first.firedAt.year,
+      completed.first.firedAt.month,
+      completed.first.firedAt.day,
+    );
+    final daysDiff = todayDate.difference(firstDate).inDays;
+    if (daysDiff > 1) return 0;
 
     int streak = 0;
     DateTime? lastDate;
@@ -51,6 +67,8 @@ class AlarmStorage {
       if (lastDate == null) {
         lastDate = date;
         streak = 1;
+      } else if (lastDate.difference(date).inDays == 0) {
+        continue; // same day, skip duplicate
       } else if (lastDate.difference(date).inDays == 1) {
         lastDate = date;
         streak++;
