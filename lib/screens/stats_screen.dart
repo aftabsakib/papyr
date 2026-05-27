@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../models/alarm_history.dart';
 import '../storage/alarm_storage.dart';
 import '../theme.dart';
 import '../widgets/stats_ui.dart';
@@ -37,7 +38,7 @@ class _StatsScreenState extends State<StatsScreen> {
     final streak = _storage.getCurrentStreak();
     final cheats = _storage.getTotalCheats();
     final total = history.length;
-    final completed = history.where((h) => h.status.name == 'completed').length;
+    final completed = history.where((h) => h.status == AlarmStatus.completed).length;
     final rate = total == 0 ? 0 : (completed / total * 100).round();
 
     return Scaffold(
