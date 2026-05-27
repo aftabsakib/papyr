@@ -2,8 +2,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:uuid/uuid.dart';
 import '../models/alarm.dart';
+import '../models/alarm_history.dart';
+import '../services/alarm_scheduler.dart';
 import '../services/gps_service.dart';
+import '../storage/alarm_storage.dart';
 import '../theme.dart';
 import '../widgets/mission_active_ui.dart';
 import 'camera_screen.dart';
@@ -20,6 +24,7 @@ class _MissionActiveScreenState extends State<MissionActiveScreen> {
   double _distanceRemaining = double.infinity;
   bool _inRange = false;
   bool _hasSignal = false;
+  double? _accuracy;
   StreamSubscription<Position>? _sub;
   final _startTime = DateTime.now();
 
@@ -35,6 +40,7 @@ class _MissionActiveScreenState extends State<MissionActiveScreen> {
         if (mounted) {
           setState(() {
             _distanceRemaining = dist;
+            _accuracy = pos.accuracy;
             _inRange = GpsService.isWithinRadius(
               currentLat: pos.latitude,
               currentLng: pos.longitude,
@@ -47,7 +53,7 @@ class _MissionActiveScreenState extends State<MissionActiveScreen> {
         }
       },
       onError: (_) {
-        if (mounted) setState(() => _hasSignal = false);
+        if (mounted) setState(() { _hasSignal = false; _accuracy = null; });
       },
     );
   }
@@ -56,6 +62,51 @@ class _MissionActiveScreenState extends State<MissionActiveScreen> {
   void dispose() {
     _sub?.cancel();
     super.dispose();
+  }
+
+  Future<void> _forceStop() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: BedBreakerTheme.bgSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Force Stop?',
+          style: GoogleFonts.spaceGrotesk(
+            fontWeight: FontWeight.w900,
+            color: BedBreakerTheme.textPrimary,
+          ),
+        ),
+        content: Text(
+          'This counts as a cheat and will be logged in your stats.',
+          style: GoogleFonts.spaceGrotesk(color: BedBreakerTheme.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Keep going',
+                style: GoogleFonts.spaceGrotesk(color: BedBreakerTheme.accent)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Force Stop',
+                style: GoogleFonts.spaceGrotesk(color: BedBreakerTheme.danger)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final storage = AlarmStorage();
+    await storage.init();
+    await storage.saveHistory(AlarmHistory(
+      id: const Uuid().v4(),
+      alarmId: widget.alarm.id,
+      firedAt: _startTime,
+      status: AlarmStatus.cheated,
+    ));
+    await AlarmScheduler.dismissNotification(widget.alarm.id);
+    if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   @override
@@ -80,7 +131,7 @@ class _MissionActiveScreenState extends State<MissionActiveScreen> {
                         color: BedBreakerTheme.textPrimary,
                       ),
                     ),
-                    GpsStatusBar(hasSignal: _hasSignal),
+                    GpsStatusBar(hasSignal: _hasSignal, accuracy: _accuracy),
                   ],
                 ),
               ),
@@ -109,7 +160,19 @@ class _MissionActiveScreenState extends State<MissionActiveScreen> {
                         )
                     : null,
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: _forceStop,
+                child: Text(
+                  'Force Stop — counts as a cheat',
+                  style: GoogleFonts.spaceGrotesk(
+                    fontSize: 13,
+                    color: BedBreakerTheme.danger.withValues(alpha: 0.7),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
             ],
           ),
         ),

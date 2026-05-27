@@ -181,11 +181,13 @@ class _CameraUnlockButtonState extends State<CameraUnlockButton>
 
 class GpsStatusBar extends StatelessWidget {
   final bool hasSignal;
+  final double? accuracy;
 
-  const GpsStatusBar({super.key, required this.hasSignal});
+  const GpsStatusBar({super.key, required this.hasSignal, this.accuracy});
 
   @override
   Widget build(BuildContext context) {
+    final accuracyText = accuracy != null ? ' ±${accuracy!.round()}m' : '';
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -196,7 +198,7 @@ class GpsStatusBar extends StatelessWidget {
         ),
         const SizedBox(width: 6),
         Text(
-          hasSignal ? 'GPS locked' : 'Searching for GPS signal...',
+          hasSignal ? 'GPS$accuracyText' : 'Searching...',
           style: GoogleFonts.spaceGrotesk(
             fontSize: 12,
             color: hasSignal ? BedBreakerTheme.success : BedBreakerTheme.textSecondary,

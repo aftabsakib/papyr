@@ -28,6 +28,18 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _init() async {
     await AlarmScheduler.init();
     await _storage.init();
+    // Reschedule any active alarms that may have fired without rescheduling
+    for (final alarm in _storage.getAllAlarms()) {
+      if (!alarm.isActive) continue;
+      final next = AlarmScheduler.nextFireTime(alarm);
+      if (next == null) {
+        // Non-repeating alarm has no future fire time — deactivate it
+        alarm.isActive = false;
+        await alarm.save();
+      } else {
+        await AlarmScheduler.scheduleAlarm(alarm);
+      }
+    }
     if (mounted) setState(() => _loaded = true);
   }
 

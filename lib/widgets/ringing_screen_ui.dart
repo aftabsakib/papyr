@@ -210,7 +210,7 @@ class _RingingGlowBackgroundState extends State<RingingGlowBackground>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     )..repeat(reverse: true);
-    _opacity = Tween<double>(begin: 0.03, end: 0.09).animate(
+    _opacity = Tween<double>(begin: 0.15, end: 0.40).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
   }

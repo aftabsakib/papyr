@@ -214,10 +214,7 @@ class MissionTypeSelector extends StatelessWidget {
           title: 'Go to a location',
           subtitle: hasPinnedLocation ? 'Location pinned on map' : 'Pin a place on the map',
           selected: !isDistance,
-          onTap: () {
-            onTypeChanged(false);
-            onPinLocation();
-          },
+          onTap: () => onTypeChanged(false),
           trailing: !isDistance
               ? GestureDetector(
                   onTap: onPinLocation,

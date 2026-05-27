@@ -173,7 +173,7 @@ class _CreateAlarmScreenState extends State<CreateAlarmScreen> {
           ),
         ],
       ),
-      bottomSheet: SaveAlarmButton(onPressed: _saving ? () {} : _save),
+      bottomSheet: SafeArea(child: SaveAlarmButton(onPressed: _saving ? () {} : _save)),
     );
   }
 }

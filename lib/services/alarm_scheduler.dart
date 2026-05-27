@@ -1,18 +1,35 @@
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../models/alarm.dart';
 
 class AlarmScheduler {
   static final _notifications = FlutterLocalNotificationsPlugin();
 
-  static Future<void> init() async {
+  static Future<void> init({
+    void Function(NotificationResponse)? onNotificationTap,
+    void Function(NotificationResponse)? onBackgroundNotificationTap,
+  }) async {
     await AndroidAlarmManager.initialize();
     await _notifications.initialize(
-      const InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-        iOS: DarwinInitializationSettings(),
+      InitializationSettings(
+        android: const AndroidInitializationSettings('@mipmap/ic_launcher'),
+        iOS: const DarwinInitializationSettings(),
       ),
+      onDidReceiveNotificationResponse: onNotificationTap,
+      onDidReceiveBackgroundNotificationResponse: onBackgroundNotificationTap,
     );
+    await _notifications
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(const AndroidNotificationChannel(
+          'bedbreaker_alarm',
+          'BedBreaker Alarms',
+          description: 'Alarm notifications',
+          importance: Importance.max,
+          playSound: true,
+          enableVibration: true,
+        ));
   }
 
   static DateTime? nextFireTime(Alarm alarm, [DateTime? from]) {
@@ -51,15 +68,51 @@ class AlarmScheduler {
       exact: true,
       wakeup: true,
       alarmClock: true,
+      params: {'uuid': alarm.id},
     );
   }
 
   static Future<void> cancelAlarm(Alarm alarm) async {
     await AndroidAlarmManager.cancel(_alarmIntId(alarm.id));
+    await _notifications.cancel(_alarmIntId(alarm.id));
+  }
+
+  static Future<void> dismissNotification(String alarmId) async {
+    await _notifications.cancel(_alarmIntId(alarmId));
   }
 
   @pragma('vm:entry-point')
-  static void _onAlarmFired() {
-    // Foreground service handles the ringing — see Task 12
+  static Future<void> _onAlarmFired(int id, Map<String, dynamic> params) async {
+    WidgetsFlutterBinding.ensureInitialized();
+    DartPluginRegistrant.ensureInitialized();
+
+    final plugin = FlutterLocalNotificationsPlugin();
+    await plugin.initialize(
+      const InitializationSettings(
+        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      ),
+    );
+
+    await plugin.show(
+      id,
+      'Wake up! Mission time.',
+      'Get out of bed and complete your mission to stop this alarm.',
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          'bedbreaker_alarm',
+          'BedBreaker Alarms',
+          channelDescription: 'Alarm notifications',
+          importance: Importance.max,
+          priority: Priority.max,
+          fullScreenIntent: true,
+          category: AndroidNotificationCategory.alarm,
+          ongoing: false,
+          autoCancel: true,
+          visibility: NotificationVisibility.public,
+          channelShowBadge: true,
+        ),
+      ),
+      payload: params['uuid'] as String? ?? '',
+    );
   }
 }
