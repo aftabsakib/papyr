@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:uuid/uuid.dart';
 import '../models/alarm.dart';
 import '../services/alarm_scheduler.dart';
@@ -111,11 +112,28 @@ class _CreateAlarmScreenState extends State<CreateAlarmScreen> {
       final storage = AlarmStorage();
       await storage.init();
       await storage.saveAlarm(alarm);
+
+      bool scheduled = false;
       try {
         await AlarmScheduler.scheduleAlarm(alarm);
-      } catch (_) {
-        // Alarm saved; scheduling failed (e.g. exact-alarm permission not granted).
-        // App will reschedule on next open.
+        scheduled = true;
+      } catch (_) {}
+
+      if (!mounted) return;
+
+      if (!scheduled) {
+        // Scheduling failed — most likely exact-alarm permission not granted.
+        // Alarm is saved; guide user to grant permission so it can ring.
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+            'Alarm saved but won\'t ring — grant "Alarms & reminders" permission.',
+            style: GoogleFonts.spaceGrotesk(),
+          ),
+          backgroundColor: BedBreakerTheme.danger,
+          duration: const Duration(seconds: 5),
+        ));
+        // Open the "Alarms & reminders" settings page on Android 12
+        await Permission.scheduleExactAlarm.request();
       }
 
       if (mounted) Navigator.pop(context);

@@ -34,8 +34,8 @@ class AlarmScheduler {
       onDidReceiveBackgroundNotificationResponse: onBackgroundNotificationTap,
     );
 
-    // Channel ID v2 — forces recreation with alarm audio stream.
-    // Android ignores changes to existing channels, so a new ID is required.
+    // Channel v2 — uses alarm audio stream (not notification stream).
+    // Android ignores changes to existing channels, so a new ID was required.
     await _notifications
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
@@ -81,6 +81,8 @@ class AlarmScheduler {
     return null;
   }
 
+  // Throws PlatformException if exact alarm permission is not granted.
+  // Callers are responsible for catching and showing appropriate UI.
   static Future<void> scheduleAlarm(Alarm alarm) async {
     if (!alarm.isActive) return;
     await _ensureTimezone();
@@ -92,37 +94,33 @@ class AlarmScheduler {
     if (!hasRepeat) {
       final next = nextFireTime(alarm);
       if (next == null) return;
-      try {
-        await _notifications.zonedSchedule(
-          _notifId(alarm.id),
-          'Wake up! Mission time.',
-          _missionBody(alarm),
-          tz.TZDateTime.from(next, tz.local),
-          details,
-          androidScheduleMode: AndroidScheduleMode.alarmClock,
-          uiLocalNotificationDateInterpretation:
-              UILocalNotificationDateInterpretation.absoluteTime,
-          payload: alarm.id,
-        );
-      } catch (_) {}
+      await _notifications.zonedSchedule(
+        _notifId(alarm.id),
+        'Wake up! Mission time.',
+        _missionBody(alarm),
+        tz.TZDateTime.from(next, tz.local),
+        details,
+        androidScheduleMode: AndroidScheduleMode.alarmClock,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        payload: alarm.id,
+      );
     } else {
       for (int i = 0; i < 7; i++) {
         if (!alarm.repeatDays[i]) continue;
         final next = _nextForWeekday(alarm.hour, alarm.minute, i + 1);
-        try {
-          await _notifications.zonedSchedule(
-            _notifId(alarm.id, i + 1),
-            'Wake up! Mission time.',
-            _missionBody(alarm),
-            next,
-            details,
-            androidScheduleMode: AndroidScheduleMode.alarmClock,
-            uiLocalNotificationDateInterpretation:
-                UILocalNotificationDateInterpretation.absoluteTime,
-            matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
-            payload: alarm.id,
-          );
-        } catch (_) {}
+        await _notifications.zonedSchedule(
+          _notifId(alarm.id, i + 1),
+          'Wake up! Mission time.',
+          _missionBody(alarm),
+          next,
+          details,
+          androidScheduleMode: AndroidScheduleMode.alarmClock,
+          uiLocalNotificationDateInterpretation:
+              UILocalNotificationDateInterpretation.absoluteTime,
+          matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
+          payload: alarm.id,
+        );
       }
     }
   }

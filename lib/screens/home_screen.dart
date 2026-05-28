@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../models/alarm.dart';
 import '../services/alarm_scheduler.dart';
 import '../storage/alarm_storage.dart';
@@ -15,21 +17,66 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final _storage = AlarmStorage();
   bool _loaded = false;
+  bool _exactAlarmGranted = true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _init();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // When user returns from the "Alarms & reminders" settings screen,
+    // re-check permission and reschedule alarms if it was just granted.
+    if (state == AppLifecycleState.resumed) _recheckAlarmPermission();
+  }
+
+  Future<void> _recheckAlarmPermission() async {
+    if (!Platform.isAndroid) return;
+    final granted = await Permission.scheduleExactAlarm.isGranted;
+    if (!mounted) return;
+    final wasGranted = _exactAlarmGranted;
+    setState(() => _exactAlarmGranted = granted);
+    if (granted && !wasGranted) {
+      // Permission just granted — reschedule everything
+      for (final alarm in _storage.getAllAlarms()) {
+        if (!alarm.isActive) continue;
+        final next = AlarmScheduler.nextFireTime(alarm);
+        if (next != null) {
+          try { await AlarmScheduler.scheduleAlarm(alarm); } catch (_) {}
+        }
+      }
+    }
   }
 
   Future<void> _init() async {
     await _storage.init();
     // Show UI immediately — never block on platform calls
     if (mounted) setState(() => _loaded = true);
-    // Reschedule active alarms in the background
+
+    if (Platform.isAndroid) {
+      final granted = await Permission.scheduleExactAlarm.isGranted;
+      if (mounted) setState(() => _exactAlarmGranted = granted);
+      if (!granted) {
+        // Opens "Alarms & reminders" settings on Android 12;
+        // no-op on Android 13+ where USE_EXACT_ALARM is auto-granted.
+        await Permission.scheduleExactAlarm.request();
+        final recheck = await Permission.scheduleExactAlarm.isGranted;
+        if (mounted) setState(() => _exactAlarmGranted = recheck);
+      }
+    }
+
     for (final alarm in _storage.getAllAlarms()) {
       if (!alarm.isActive) continue;
       final next = AlarmScheduler.nextFireTime(alarm);
@@ -49,7 +96,7 @@ class _HomeScreenState extends State<HomeScreen> {
     alarm.isActive = !alarm.isActive;
     await alarm.save();
     if (alarm.isActive) {
-      await AlarmScheduler.scheduleAlarm(alarm);
+      try { await AlarmScheduler.scheduleAlarm(alarm); } catch (_) {}
     } else {
       await AlarmScheduler.cancelAlarm(alarm);
     }
@@ -60,6 +107,11 @@ class _HomeScreenState extends State<HomeScreen> {
     await AlarmScheduler.cancelAlarm(alarm);
     await _storage.deleteAlarm(alarm.id);
     setState(() {});
+  }
+
+  Future<void> _fixAlarmPermission() async {
+    await Permission.scheduleExactAlarm.request();
+    await _recheckAlarmPermission();
   }
 
   @override
@@ -103,6 +155,8 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Column(
         children: [
+          if (!_exactAlarmGranted)
+            _AlarmPermissionBanner(onFix: _fixAlarmPermission),
           HomeStatsBar(streak: streak, cheats: cheats),
           Expanded(
             child: alarms.isEmpty
@@ -128,6 +182,50 @@ class _HomeScreenState extends State<HomeScreen> {
         label: Text(
           'New Alarm',
           style: GoogleFonts.spaceGrotesk(fontWeight: FontWeight.w800),
+        ),
+      ),
+    );
+  }
+}
+
+class _AlarmPermissionBanner extends StatelessWidget {
+  final VoidCallback onFix;
+  const _AlarmPermissionBanner({required this.onFix});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: BedBreakerTheme.danger.withValues(alpha: 0.15),
+      child: InkWell(
+        onTap: onFix,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded,
+                  color: BedBreakerTheme.danger, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Alarms won\'t ring — tap to grant alarm permission',
+                  style: GoogleFonts.spaceGrotesk(
+                    fontSize: 12,
+                    color: BedBreakerTheme.danger,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Text(
+                'FIX',
+                style: GoogleFonts.spaceGrotesk(
+                  fontSize: 12,
+                  color: BedBreakerTheme.danger,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.0,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
