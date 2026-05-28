@@ -15,7 +15,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 @pragma('vm:entry-point')
 void _onBackgroundNotificationTap(NotificationResponse details) {
-  // Background tap handled on next app open via getNotificationAppLaunchDetails
+  // Background taps are routed via _handleNotificationTap when the app opens
 }
 
 void main() async {
@@ -66,67 +66,20 @@ class BedBreakerApp extends StatelessWidget {
       title: 'BedBreaker',
       debugShowCheckedModeBanner: false,
       theme: BedBreakerTheme.dark,
-      home: const _AppEntryPoint(),
-    );
-  }
-}
-
-class _AppEntryPoint extends StatefulWidget {
-  const _AppEntryPoint();
-
-  @override
-  State<_AppEntryPoint> createState() => _AppEntryPointState();
-}
-
-class _AppEntryPointState extends State<_AppEntryPoint> {
-  bool _checking = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkLaunch();
-  }
-
-  Future<void> _checkLaunch() async {
-    try {
-      final details = await FlutterLocalNotificationsPlugin()
-          .getNotificationAppLaunchDetails()
-          .timeout(const Duration(seconds: 3));
-      if (details?.didNotificationLaunchApp == true) {
-        final payload = details!.notificationResponse?.payload;
-        if (payload != null && payload.isNotEmpty) {
-          await _navigateToRinging(payload);
-        }
-      }
-    } catch (_) {
-      // Never block app open on notification check failure
-    }
-    if (mounted) setState(() => _checking = false);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_checking) {
-      return const Scaffold(
-        backgroundColor: BedBreakerTheme.bgPrimary,
-        body: Center(
-          child: CircularProgressIndicator(color: BedBreakerTheme.accent),
-        ),
-      );
-    }
-    return FutureBuilder<bool>(
-      future: _permissionsGranted(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Scaffold(
-            backgroundColor: BedBreakerTheme.bgPrimary,
-            body: Center(
-              child: CircularProgressIndicator(color: BedBreakerTheme.accent),
-            ),
-          );
-        }
-        return snapshot.data! ? const HomeScreen() : const OnboardingScreen();
-      },
+      home: FutureBuilder<bool>(
+        future: _permissionsGranted(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Scaffold(
+              backgroundColor: BedBreakerTheme.bgPrimary,
+              body: Center(
+                child: CircularProgressIndicator(color: BedBreakerTheme.accent),
+              ),
+            );
+          }
+          return snapshot.data! ? const HomeScreen() : const OnboardingScreen();
+        },
+      ),
     );
   }
 
