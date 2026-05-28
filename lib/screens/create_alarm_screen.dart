@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:uuid/uuid.dart';
 import '../models/alarm.dart';
 import '../services/alarm_scheduler.dart';
@@ -123,7 +122,7 @@ class _CreateAlarmScreenState extends State<CreateAlarmScreen> {
 
       if (!scheduled) {
         // Scheduling failed — most likely exact-alarm permission not granted.
-        // Alarm is saved; guide user to grant permission so it can ring.
+        // Open the "Alarms & reminders" settings page directly (correct API).
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(
             'Alarm saved but won\'t ring — grant "Alarms & reminders" permission.',
@@ -132,8 +131,7 @@ class _CreateAlarmScreenState extends State<CreateAlarmScreen> {
           backgroundColor: BedBreakerTheme.danger,
           duration: const Duration(seconds: 5),
         ));
-        // Open the "Alarms & reminders" settings page on Android 12
-        await Permission.scheduleExactAlarm.request();
+        await AlarmScheduler.requestExactAlarmPermission();
       }
 
       if (mounted) Navigator.pop(context);

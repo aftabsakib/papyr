@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/timezone.dart' as tz;
@@ -79,6 +80,24 @@ class AlarmScheduler {
       }
     }
     return null;
+  }
+
+  static AndroidFlutterLocalNotificationsPlugin? get _android =>
+      _notifications.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+
+  /// Uses AlarmManager.canScheduleExactAlarms() — the reliable API.
+  /// permission_handler v11 has a confirmed bug for scheduleExactAlarm.
+  static Future<bool> canScheduleExactAlarms() async {
+    if (!Platform.isAndroid) return true;
+    return await _android?.canScheduleExactNotifications() ?? true;
+  }
+
+  /// Opens Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM directly.
+  /// This is the only reliable way on Android 12 — permission_handler fails.
+  static Future<void> requestExactAlarmPermission() async {
+    if (!Platform.isAndroid) return;
+    await _android?.requestExactAlarmsPermission();
   }
 
   // Throws PlatformException if exact alarm permission is not granted.

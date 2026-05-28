@@ -1,7 +1,5 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:permission_handler/permission_handler.dart';
 import '../models/alarm.dart';
 import '../services/alarm_scheduler.dart';
 import '../storage/alarm_storage.dart';
@@ -37,19 +35,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // When user returns from the "Alarms & reminders" settings screen,
-    // re-check permission and reschedule alarms if it was just granted.
+    // User returned from the system Alarms & reminders settings page.
     if (state == AppLifecycleState.resumed) _recheckAlarmPermission();
   }
 
   Future<void> _recheckAlarmPermission() async {
-    if (!Platform.isAndroid) return;
-    final granted = await Permission.scheduleExactAlarm.isGranted;
+    final granted = await AlarmScheduler.canScheduleExactAlarms();
     if (!mounted) return;
     final wasGranted = _exactAlarmGranted;
     setState(() => _exactAlarmGranted = granted);
     if (granted && !wasGranted) {
-      // Permission just granted — reschedule everything
+      // Just got permission — reschedule all active alarms now.
       for (final alarm in _storage.getAllAlarms()) {
         if (!alarm.isActive) continue;
         final next = AlarmScheduler.nextFireTime(alarm);
@@ -62,20 +58,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _init() async {
     await _storage.init();
-    // Show UI immediately — never block on platform calls
     if (mounted) setState(() => _loaded = true);
 
-    if (Platform.isAndroid) {
-      final granted = await Permission.scheduleExactAlarm.isGranted;
-      if (mounted) setState(() => _exactAlarmGranted = granted);
-      if (!granted) {
-        // Opens "Alarms & reminders" settings on Android 12;
-        // no-op on Android 13+ where USE_EXACT_ALARM is auto-granted.
-        await Permission.scheduleExactAlarm.request();
-        final recheck = await Permission.scheduleExactAlarm.isGranted;
-        if (mounted) setState(() => _exactAlarmGranted = recheck);
-      }
-    }
+    // Check using AlarmManager.canScheduleExactAlarms() via flutter_local_notifications.
+    // permission_handler v11 has a confirmed bug for scheduleExactAlarm — don't use it.
+    final granted = await AlarmScheduler.canScheduleExactAlarms();
+    if (mounted) setState(() => _exactAlarmGranted = granted);
 
     for (final alarm in _storage.getAllAlarms()) {
       if (!alarm.isActive) continue;
@@ -110,42 +98,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _fixAlarmPermission() async {
-    if (!mounted) return;
-    final open = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: BedBreakerTheme.bgSurface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          'Allow Alarm Permission',
-          style: GoogleFonts.spaceGrotesk(
-              fontWeight: FontWeight.w900, color: BedBreakerTheme.textPrimary),
-        ),
-        content: Text(
-          'Open Settings, find BedBreaker, tap "Alarms & reminders", and toggle it ON.',
-          style: GoogleFonts.spaceGrotesk(
-              fontSize: 14, color: BedBreakerTheme.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel',
-                style: GoogleFonts.spaceGrotesk(
-                    color: BedBreakerTheme.textSecondary)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Open Settings',
-                style: GoogleFonts.spaceGrotesk(
-                    color: BedBreakerTheme.accent,
-                    fontWeight: FontWeight.w800)),
-          ),
-        ],
-      ),
-    );
-    if (open == true) {
-      await openAppSettings();
-    }
+    // requestExactAlarmsPermission() launches Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM
+    // directly — the correct Alarms & reminders page for Android 12+.
+    await AlarmScheduler.requestExactAlarmPermission();
+    // didChangeAppLifecycleState will handle rechecking when user returns.
   }
 
   @override
@@ -189,8 +145,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
       body: Column(
         children: [
-          if (!_exactAlarmGranted)
-            _AlarmPermissionBanner(onFix: _fixAlarmPermission),
+          if (!_exactAlarmGranted) _buildPermissionBanner(),
           HomeStatsBar(streak: streak, cheats: cheats),
           Expanded(
             child: alarms.isEmpty
@@ -220,53 +175,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
     );
   }
-}
 
-class _AlarmPermissionBanner extends StatelessWidget {
-  final VoidCallback onFix;
-  const _AlarmPermissionBanner({required this.onFix});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onFix,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        width: double.infinity,
-        color: BedBreakerTheme.danger.withValues(alpha: 0.18),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            const Icon(Icons.warning_amber_rounded,
-                color: BedBreakerTheme.danger, size: 18),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Alarms won\'t ring — tap here to fix',
-                style: GoogleFonts.spaceGrotesk(
-                  fontSize: 13,
-                  color: BedBreakerTheme.danger,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: BedBreakerTheme.danger,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                'FIX',
-                style: GoogleFonts.spaceGrotesk(
-                  fontSize: 11,
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.8,
-                ),
-              ),
-            ),
-          ],
+  Widget _buildPermissionBanner() {
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: _fixAlarmPermission,
+        icon: const Icon(Icons.warning_amber_rounded, size: 18),
+        label: Text(
+          'Alarms won\'t ring — tap to grant permission',
+          style: GoogleFonts.spaceGrotesk(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        style: FilledButton.styleFrom(
+          backgroundColor: BedBreakerTheme.danger,
+          foregroundColor: Colors.white,
+          shape: const RoundedRectangleBorder(),
+          padding: const EdgeInsets.symmetric(vertical: 14),
         ),
       ),
     );
