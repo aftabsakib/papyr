@@ -34,16 +34,19 @@ class AlarmScheduler {
       onDidReceiveBackgroundNotificationResponse: onBackgroundNotificationTap,
     );
 
+    // Channel ID v2 — forces recreation with alarm audio stream.
+    // Android ignores changes to existing channels, so a new ID is required.
     await _notifications
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(const AndroidNotificationChannel(
-          'bedbreaker_alarm',
+          'bedbreaker_alarmv2',
           'BedBreaker Alarms',
           description: 'Alarm notifications',
           importance: Importance.max,
           playSound: true,
           enableVibration: true,
+          audioAttributesUsage: AudioAttributesUsage.alarm,
         ));
   }
 
@@ -84,46 +87,50 @@ class AlarmScheduler {
     await cancelAlarm(alarm);
 
     final hasRepeat = alarm.repeatDays.any((d) => d);
+    final details = _buildNotifDetails(alarm);
 
     if (!hasRepeat) {
       final next = nextFireTime(alarm);
       if (next == null) return;
-      await _notifications.zonedSchedule(
-        _notifId(alarm.id),
-        'Wake up! Mission time.',
-        _missionBody(alarm),
-        tz.TZDateTime.from(next, tz.local),
-        _buildNotifDetails(alarm),
-        androidScheduleMode: AndroidScheduleMode.alarmClock,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
-        payload: alarm.id,
-      );
-    } else {
-      for (int i = 0; i < 7; i++) {
-        if (!alarm.repeatDays[i]) continue;
-        final targetWeekday = i + 1;
-        final next = _nextForWeekday(alarm.hour, alarm.minute, targetWeekday);
+      try {
         await _notifications.zonedSchedule(
-          _notifId(alarm.id, i + 1),
+          _notifId(alarm.id),
           'Wake up! Mission time.',
           _missionBody(alarm),
-          next,
-          _buildNotifDetails(alarm),
+          tz.TZDateTime.from(next, tz.local),
+          details,
           androidScheduleMode: AndroidScheduleMode.alarmClock,
           uiLocalNotificationDateInterpretation:
               UILocalNotificationDateInterpretation.absoluteTime,
-          matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
           payload: alarm.id,
         );
+      } catch (_) {}
+    } else {
+      for (int i = 0; i < 7; i++) {
+        if (!alarm.repeatDays[i]) continue;
+        final next = _nextForWeekday(alarm.hour, alarm.minute, i + 1);
+        try {
+          await _notifications.zonedSchedule(
+            _notifId(alarm.id, i + 1),
+            'Wake up! Mission time.',
+            _missionBody(alarm),
+            next,
+            details,
+            androidScheduleMode: AndroidScheduleMode.alarmClock,
+            uiLocalNotificationDateInterpretation:
+                UILocalNotificationDateInterpretation.absoluteTime,
+            matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
+            payload: alarm.id,
+          );
+        } catch (_) {}
       }
     }
   }
 
   static Future<void> cancelAlarm(Alarm alarm) async {
-    await _notifications.cancel(_notifId(alarm.id));
+    try { await _notifications.cancel(_notifId(alarm.id)); } catch (_) {}
     for (int i = 1; i <= 7; i++) {
-      await _notifications.cancel(_notifId(alarm.id, i));
+      try { await _notifications.cancel(_notifId(alarm.id, i)); } catch (_) {}
     }
   }
 
@@ -131,7 +138,7 @@ class AlarmScheduler {
     // Only cancel the one-shot (base) ID. Repeating day-offset notifications
     // use matchDateTimeComponents and self-reschedule — cancelling them here
     // would wipe all future occurrences of a repeating alarm.
-    await _notifications.cancel(_notifId(alarmId));
+    try { await _notifications.cancel(_notifId(alarmId)); } catch (_) {}
   }
 
   static tz.TZDateTime _nextForWeekday(int hour, int minute, int weekday) {
@@ -157,7 +164,7 @@ class AlarmScheduler {
   static NotificationDetails _buildNotifDetails(Alarm alarm) {
     return const NotificationDetails(
       android: AndroidNotificationDetails(
-        'bedbreaker_alarm',
+        'bedbreaker_alarmv2',
         'BedBreaker Alarms',
         channelDescription: 'Alarm notifications',
         importance: Importance.max,
@@ -165,7 +172,8 @@ class AlarmScheduler {
         fullScreenIntent: true,
         category: AndroidNotificationCategory.alarm,
         visibility: NotificationVisibility.public,
-        autoCancel: true,
+        autoCancel: false,
+        audioAttributesUsage: AudioAttributesUsage.alarm,
       ),
     );
   }

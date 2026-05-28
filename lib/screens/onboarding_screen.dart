@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -24,6 +25,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final camera = await Permission.camera.request();
     final notification = await Permission.notification.request();
     await Permission.ignoreBatteryOptimizations.request();
+    // Android 12 (API 31-32): exact alarms need user consent via Settings.
+    // Android 13+: USE_EXACT_ALARM in manifest is auto-granted; this is a no-op.
+    if (Platform.isAndroid) {
+      await Permission.scheduleExactAlarm.request();
+    }
 
     final allGranted = location.isGranted && camera.isGranted && notification.isGranted;
 

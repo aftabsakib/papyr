@@ -27,17 +27,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _init() async {
     await _storage.init();
+    // Show UI immediately — never block on platform calls
+    if (mounted) setState(() => _loaded = true);
+    // Reschedule active alarms in the background
     for (final alarm in _storage.getAllAlarms()) {
       if (!alarm.isActive) continue;
       final next = AlarmScheduler.nextFireTime(alarm);
       if (next == null) {
         alarm.isActive = false;
         await alarm.save();
+        if (mounted) setState(() {});
       } else {
-        await AlarmScheduler.scheduleAlarm(alarm);
+        try {
+          await AlarmScheduler.scheduleAlarm(alarm);
+        } catch (_) {}
       }
     }
-    if (mounted) setState(() => _loaded = true);
   }
 
   Future<void> _toggleAlarm(Alarm alarm) async {
