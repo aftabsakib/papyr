@@ -8,6 +8,8 @@ enum MissionType {
   distance,
   @HiveField(1)
   pin,
+  @HiveField(2)
+  activity,
 }
 
 @HiveType(typeId: 0)
@@ -48,6 +50,9 @@ class Alarm extends HiveObject {
   @HiveField(11)
   bool isActive;
 
+  @HiveField(12)
+  String? missionLabel;
+
   Alarm({
     required this.id,
     required this.label,
@@ -61,6 +66,7 @@ class Alarm extends HiveObject {
     required this.targetLng,
     required this.radiusMeters,
     required this.isActive,
+    this.missionLabel,
   });
 
   String get timeString =>

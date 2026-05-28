@@ -79,9 +79,11 @@ class RingingScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 48),
                   MissionInstructionCard(
-                    instruction: alarm.missionType == MissionType.distance
-                        ? 'Walk ${alarm.radiusMeters.round()}m from home'
-                        : 'Reach your pinned location',
+                    instruction: alarm.missionType == MissionType.activity
+                        ? (alarm.missionLabel ?? 'Complete your mission')
+                        : alarm.missionType == MissionType.distance
+                            ? 'Walk ${alarm.radiusMeters.round()}m from home'
+                            : 'Reach your pinned location',
                     subtitle: 'Take a photo there to stop this alarm',
                   ),
                   const Spacer(),

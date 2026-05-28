@@ -20,9 +20,10 @@ class _CreateAlarmScreenState extends State<CreateAlarmScreen> {
   TimeOfDay _time = TimeOfDay.now();
   final _labelController = TextEditingController(text: 'Morning Mission');
   final List<bool> _repeatDays = List.filled(7, false);
-  bool _isDistance = true;
+  MissionType? _missionType;
   double _distanceMeters = 500;
   double? _targetLat, _targetLng;
+  String? _selectedActivity;
   bool _saving = false;
 
   Future<void> _pickTime() async {
@@ -44,35 +45,49 @@ class _CreateAlarmScreenState extends State<CreateAlarmScreen> {
 
   Future<void> _save() async {
     if (_saving) return;
-    setState(() => _saving = true);
-
-    final pos = await GpsService.getCurrentPosition();
-    if (pos == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Cannot get your location. Enable GPS.',
-                style: GoogleFonts.spaceGrotesk()),
-            backgroundColor: BedBreakerTheme.danger,
-          ),
-        );
-      }
-      setState(() => _saving = false);
+    if (_missionType == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Pick a mission type.', style: GoogleFonts.spaceGrotesk()),
+        backgroundColor: BedBreakerTheme.danger,
+      ));
+      return;
+    }
+    if (_missionType == MissionType.activity &&
+        (_selectedActivity == null || _selectedActivity!.trim().isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Pick or type an activity.', style: GoogleFonts.spaceGrotesk()),
+        backgroundColor: BedBreakerTheme.danger,
+      ));
+      return;
+    }
+    if (_missionType == MissionType.pin && (_targetLat == null || _targetLng == null)) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Pin a target location on the map.', style: GoogleFonts.spaceGrotesk()),
+        backgroundColor: BedBreakerTheme.danger,
+      ));
       return;
     }
 
-    if (!_isDistance && (_targetLat == null || _targetLng == null)) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Pin a target location on the map.',
-                style: GoogleFonts.spaceGrotesk()),
+    setState(() => _saving = true);
+
+    double homeLat = 0, homeLng = 0, targetLat = 0, targetLng = 0;
+
+    if (_missionType != MissionType.activity) {
+      final pos = await GpsService.getCurrentPosition();
+      if (pos == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Cannot get your location. Enable GPS.', style: GoogleFonts.spaceGrotesk()),
             backgroundColor: BedBreakerTheme.danger,
-          ),
-        );
+          ));
+        }
+        setState(() => _saving = false);
+        return;
       }
-      setState(() => _saving = false);
-      return;
+      homeLat = pos.latitude;
+      homeLng = pos.longitude;
+      targetLat = _missionType == MissionType.distance ? pos.latitude : _targetLat!;
+      targetLng = _missionType == MissionType.distance ? pos.longitude : _targetLng!;
     }
 
     final alarm = Alarm(
@@ -83,13 +98,14 @@ class _CreateAlarmScreenState extends State<CreateAlarmScreen> {
       hour: _time.hour,
       minute: _time.minute,
       repeatDays: _repeatDays,
-      missionType: _isDistance ? MissionType.distance : MissionType.pin,
-      homeLat: pos.latitude,
-      homeLng: pos.longitude,
-      targetLat: _isDistance ? pos.latitude : _targetLat!,
-      targetLng: _isDistance ? pos.longitude : _targetLng!,
-      radiusMeters: _isDistance ? _distanceMeters : 50,
+      missionType: _missionType!,
+      homeLat: homeLat,
+      homeLng: homeLng,
+      targetLat: targetLat,
+      targetLng: targetLng,
+      radiusMeters: _missionType == MissionType.distance ? _distanceMeters : 50,
       isActive: true,
+      missionLabel: _missionType == MissionType.activity ? _selectedActivity!.trim() : null,
     );
 
     final storage = AlarmStorage();
@@ -121,7 +137,7 @@ class _CreateAlarmScreenState extends State<CreateAlarmScreen> {
                 child: SizedBox(
                   width: 18, height: 18,
                   child: CircularProgressIndicator(
-                    strokeWidth: 2, color: BedBreakerTheme.accent),
+                      strokeWidth: 2, color: BedBreakerTheme.accent),
                 ),
               ),
             ),
@@ -153,11 +169,13 @@ class _CreateAlarmScreenState extends State<CreateAlarmScreen> {
           ),
           const SizedBox(height: 20),
           MissionTypeSelector(
-            isDistance: _isDistance,
+            selectedType: _missionType,
             distanceMeters: _distanceMeters,
             hasPinnedLocation: _targetLat != null,
-            onTypeChanged: (isDistance) => setState(() => _isDistance = isDistance),
+            selectedActivity: _selectedActivity,
+            onTypeChanged: (type) => setState(() => _missionType = type),
             onDistanceChanged: (v) => setState(() => _distanceMeters = v),
+            onActivityChanged: (v) => setState(() => _selectedActivity = v),
             onPinLocation: () async {
               final result = await Navigator.push<Map<String, double>>(
                 context,

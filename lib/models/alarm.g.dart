@@ -29,13 +29,14 @@ class AlarmAdapter extends TypeAdapter<Alarm> {
       targetLng: fields[9] as double,
       radiusMeters: fields[10] as double,
       isActive: fields[11] as bool,
+      missionLabel: fields[12] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, Alarm obj) {
     writer
-      ..writeByte(12)
+      ..writeByte(13)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -59,7 +60,9 @@ class AlarmAdapter extends TypeAdapter<Alarm> {
       ..writeByte(10)
       ..write(obj.radiusMeters)
       ..writeByte(11)
-      ..write(obj.isActive);
+      ..write(obj.isActive)
+      ..writeByte(12)
+      ..write(obj.missionLabel);
   }
 
   @override
@@ -84,6 +87,8 @@ class MissionTypeAdapter extends TypeAdapter<MissionType> {
         return MissionType.distance;
       case 1:
         return MissionType.pin;
+      case 2:
+        return MissionType.activity;
       default:
         return MissionType.distance;
     }
@@ -97,6 +102,9 @@ class MissionTypeAdapter extends TypeAdapter<MissionType> {
         break;
       case MissionType.pin:
         writer.writeByte(1);
+        break;
+      case MissionType.activity:
+        writer.writeByte(2);
         break;
     }
   }

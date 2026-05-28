@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../models/alarm.dart';
 import '../theme.dart';
 
 class BigTimePicker extends StatelessWidget {
@@ -127,26 +128,58 @@ class RepeatDaysSelector extends StatelessWidget {
   }
 }
 
-class MissionTypeSelector extends StatelessWidget {
-  final bool isDistance;
+class MissionTypeSelector extends StatefulWidget {
+  final MissionType? selectedType;
   final double distanceMeters;
   final bool hasPinnedLocation;
-  final ValueChanged<bool> onTypeChanged;
+  final String? selectedActivity;
+  final ValueChanged<MissionType> onTypeChanged;
   final ValueChanged<double> onDistanceChanged;
   final VoidCallback onPinLocation;
+  final ValueChanged<String> onActivityChanged;
 
   const MissionTypeSelector({
     super.key,
-    required this.isDistance,
+    required this.selectedType,
     required this.distanceMeters,
     required this.hasPinnedLocation,
+    required this.selectedActivity,
     required this.onTypeChanged,
     required this.onDistanceChanged,
     required this.onPinLocation,
+    required this.onActivityChanged,
   });
 
   @override
+  State<MissionTypeSelector> createState() => _MissionTypeSelectorState();
+}
+
+class _MissionTypeSelectorState extends State<MissionTypeSelector> {
+  final _customController = TextEditingController();
+
+  static const _presets = [
+    ('🏋️', 'Gym'),
+    ('🍳', 'Cook'),
+    ('💼', 'Work'),
+    ('📚', 'Read'),
+    ('🚶', 'Walk'),
+    ('🧘', 'Meditate'),
+    ('🏃', 'Run'),
+    ('🚿', 'Cold shower'),
+  ];
+
+  @override
+  void dispose() {
+    _customController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final isActivity = widget.selectedType == MissionType.activity;
+    final isDistance = widget.selectedType == MissionType.distance;
+    final isPin = widget.selectedType == MissionType.pin;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -160,12 +193,52 @@ class MissionTypeSelector extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
+
+        // Activity option
+        _MissionOption(
+          icon: Icons.emoji_events_rounded,
+          title: 'Activity mission',
+          subtitle: isActivity
+              ? (widget.selectedActivity ?? 'Pick an activity below')
+              : 'Gym, cook, work, walk...',
+          selected: isActivity,
+          onTap: () => widget.onTypeChanged(MissionType.activity),
+        ),
+        if (isActivity) ...[
+          const SizedBox(height: 10),
+          _ActivityGrid(
+            presets: _presets,
+            selected: widget.selectedActivity,
+            onSelect: widget.onActivityChanged,
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _customController,
+            style: GoogleFonts.spaceGrotesk(color: BedBreakerTheme.textPrimary),
+            onChanged: widget.onActivityChanged,
+            decoration: InputDecoration(
+              hintText: 'Or type your own mission...',
+              hintStyle: GoogleFonts.spaceGrotesk(color: BedBreakerTheme.textSecondary),
+              filled: true,
+              fillColor: BedBreakerTheme.bgSurface2,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            ),
+          ),
+        ],
+
+        const SizedBox(height: 8),
+
+        // Distance option
         _MissionOption(
           icon: Icons.directions_walk_rounded,
           title: 'Distance from home',
-          subtitle: isDistance ? '${distanceMeters.round()}m walk required' : 'Walk away from where you sleep',
+          subtitle: isDistance ? '${widget.distanceMeters.round()}m walk required' : 'Walk away from where you sleep',
           selected: isDistance,
-          onTap: () => onTypeChanged(true),
+          onTap: () => widget.onTypeChanged(MissionType.distance),
         ),
         if (isDistance) ...[
           const SizedBox(height: 8),
@@ -177,56 +250,53 @@ class MissionTypeSelector extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Text(
-                  '100m',
-                  style: GoogleFonts.spaceGrotesk(fontSize: 11, color: BedBreakerTheme.textSecondary),
-                ),
+                Text('100m', style: GoogleFonts.spaceGrotesk(fontSize: 11, color: BedBreakerTheme.textSecondary)),
                 Expanded(
                   child: SliderTheme(
                     data: SliderTheme.of(context).copyWith(
                       activeTrackColor: BedBreakerTheme.accent,
                       inactiveTrackColor: BedBreakerTheme.bgSurface,
                       thumbColor: BedBreakerTheme.accent,
-                      overlayColor: BedBreakerTheme.accent.withValues(alpha:0.2),
+                      overlayColor: BedBreakerTheme.accent.withValues(alpha: 0.2),
                       trackHeight: 3,
                       thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
                     ),
                     child: Slider(
-                      value: distanceMeters,
+                      value: widget.distanceMeters,
                       min: 100,
                       max: 2000,
                       divisions: 19,
-                      onChanged: onDistanceChanged,
+                      onChanged: widget.onDistanceChanged,
                     ),
                   ),
                 ),
-                Text(
-                  '2km',
-                  style: GoogleFonts.spaceGrotesk(fontSize: 11, color: BedBreakerTheme.textSecondary),
-                ),
+                Text('2km', style: GoogleFonts.spaceGrotesk(fontSize: 11, color: BedBreakerTheme.textSecondary)),
               ],
             ),
           ),
         ],
+
         const SizedBox(height: 8),
+
+        // Pin option
         _MissionOption(
           icon: Icons.pin_drop_rounded,
           title: 'Go to a location',
-          subtitle: hasPinnedLocation ? 'Location pinned on map' : 'Pin a place on the map',
-          selected: !isDistance,
-          onTap: () => onTypeChanged(false),
-          trailing: !isDistance
+          subtitle: widget.hasPinnedLocation ? 'Location pinned on map' : 'Pin a place on the map',
+          selected: isPin,
+          onTap: () => widget.onTypeChanged(MissionType.pin),
+          trailing: isPin
               ? GestureDetector(
-                  onTap: onPinLocation,
+                  onTap: widget.onPinLocation,
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: BedBreakerTheme.accent.withValues(alpha:0.15),
+                      color: BedBreakerTheme.accent.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: BedBreakerTheme.accent.withValues(alpha:0.4)),
+                      border: Border.all(color: BedBreakerTheme.accent.withValues(alpha: 0.4)),
                     ),
                     child: Text(
-                      hasPinnedLocation ? 'Change' : 'Set pin',
+                      widget.hasPinnedLocation ? 'Change' : 'Set pin',
                       style: GoogleFonts.spaceGrotesk(
                         fontSize: 12,
                         color: BedBreakerTheme.accent,
@@ -238,6 +308,65 @@ class MissionTypeSelector extends StatelessWidget {
               : null,
         ),
       ],
+    );
+  }
+}
+
+class _ActivityGrid extends StatelessWidget {
+  final List<(String, String)> presets;
+  final String? selected;
+  final ValueChanged<String> onSelect;
+
+  const _ActivityGrid({
+    required this.presets,
+    required this.selected,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.count(
+      crossAxisCount: 4,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: 8,
+      crossAxisSpacing: 8,
+      childAspectRatio: 1.0,
+      children: presets.map(((String emoji, String label) preset) {
+        final isSelected = selected == preset.$2;
+        return GestureDetector(
+          onTap: () => onSelect(preset.$2),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? BedBreakerTheme.accent.withValues(alpha: 0.15)
+                  : BedBreakerTheme.bgSurface2,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isSelected ? BedBreakerTheme.accent : Colors.transparent,
+                width: 1.5,
+              ),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(preset.$1, style: const TextStyle(fontSize: 22)),
+                const SizedBox(height: 4),
+                Text(
+                  preset.$2,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.spaceGrotesk(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: isSelected ? BedBreakerTheme.accent : BedBreakerTheme.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 }
@@ -268,7 +397,7 @@ class _MissionOption extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: selected
-              ? BedBreakerTheme.accent.withValues(alpha:0.08)
+              ? BedBreakerTheme.accent.withValues(alpha: 0.08)
               : BedBreakerTheme.bgSurface,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
@@ -283,7 +412,7 @@ class _MissionOption extends StatelessWidget {
               height: 40,
               decoration: BoxDecoration(
                 color: selected
-                    ? BedBreakerTheme.accent.withValues(alpha:0.2)
+                    ? BedBreakerTheme.accent.withValues(alpha: 0.2)
                     : BedBreakerTheme.bgSurface2,
                 borderRadius: BorderRadius.circular(10),
               ),

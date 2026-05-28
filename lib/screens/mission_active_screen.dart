@@ -28,9 +28,12 @@ class _MissionActiveScreenState extends State<MissionActiveScreen> {
   StreamSubscription<Position>? _sub;
   final _startTime = DateTime.now();
 
+  bool get _isActivityMission => widget.alarm.missionType == MissionType.activity;
+
   @override
   void initState() {
     super.initState();
+    if (_isActivityMission) return;
     _sub = GpsService.trackLocation().listen(
       (pos) {
         final dist = GpsService.distanceBetween(
@@ -70,27 +73,18 @@ class _MissionActiveScreenState extends State<MissionActiveScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: BedBreakerTheme.bgSurface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          'Force Stop?',
-          style: GoogleFonts.spaceGrotesk(
-            fontWeight: FontWeight.w900,
-            color: BedBreakerTheme.textPrimary,
-          ),
-        ),
-        content: Text(
-          'This counts as a cheat and will be logged in your stats.',
-          style: GoogleFonts.spaceGrotesk(color: BedBreakerTheme.textSecondary),
-        ),
+        title: Text('Force Stop?',
+            style: GoogleFonts.spaceGrotesk(fontWeight: FontWeight.w900, color: BedBreakerTheme.textPrimary)),
+        content: Text('This counts as a cheat and will be logged in your stats.',
+            style: GoogleFonts.spaceGrotesk(color: BedBreakerTheme.textSecondary)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Keep going',
-                style: GoogleFonts.spaceGrotesk(color: BedBreakerTheme.accent)),
+            child: Text('Keep going', style: GoogleFonts.spaceGrotesk(color: BedBreakerTheme.accent)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Force Stop',
-                style: GoogleFonts.spaceGrotesk(color: BedBreakerTheme.danger)),
+            child: Text('Force Stop', style: GoogleFonts.spaceGrotesk(color: BedBreakerTheme.danger)),
           ),
         ],
       ),
@@ -109,8 +103,19 @@ class _MissionActiveScreenState extends State<MissionActiveScreen> {
     if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
+  void _goToCamera() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CameraScreen(alarm: widget.alarm, startTime: _startTime),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final cameraUnlocked = _isActivityMission || _inRange;
+
     return PopScope(
       canPop: false,
       child: Scaffold(
@@ -131,34 +136,28 @@ class _MissionActiveScreenState extends State<MissionActiveScreen> {
                         color: BedBreakerTheme.textPrimary,
                       ),
                     ),
-                    GpsStatusBar(hasSignal: _hasSignal, accuracy: _accuracy),
+                    if (!_isActivityMission)
+                      GpsStatusBar(hasSignal: _hasSignal, accuracy: _accuracy),
                   ],
                 ),
               ),
               const Spacer(),
-              DistanceRing(
-                distanceRemaining: _distanceRemaining == double.infinity
-                    ? widget.alarm.radiusMeters
-                    : _distanceRemaining,
-                totalDistance: widget.alarm.missionType == MissionType.distance
-                    ? widget.alarm.radiusMeters
-                    : (widget.alarm.radiusMeters * 3).clamp(200, 3000),
-                inRange: _inRange,
-              ),
+              if (_isActivityMission)
+                _ActivityMissionDisplay(label: widget.alarm.missionLabel ?? 'Complete your mission')
+              else
+                DistanceRing(
+                  distanceRemaining: _distanceRemaining == double.infinity
+                      ? widget.alarm.radiusMeters
+                      : _distanceRemaining,
+                  totalDistance: widget.alarm.missionType == MissionType.distance
+                      ? widget.alarm.radiusMeters
+                      : (widget.alarm.radiusMeters * 3).clamp(200, 3000),
+                  inRange: _inRange,
+                ),
               const Spacer(),
               CameraUnlockButton(
-                unlocked: _inRange,
-                onPressed: _inRange
-                    ? () => Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => CameraScreen(
-                              alarm: widget.alarm,
-                              startTime: _startTime,
-                            ),
-                          ),
-                        )
-                    : null,
+                unlocked: cameraUnlocked,
+                onPressed: cameraUnlocked ? _goToCamera : null,
               ),
               const SizedBox(height: 16),
               TextButton(
@@ -177,6 +176,61 @@ class _MissionActiveScreenState extends State<MissionActiveScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ActivityMissionDisplay extends StatelessWidget {
+  final String label;
+  const _ActivityMissionDisplay({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 120,
+          height: 120,
+          decoration: BoxDecoration(
+            color: BedBreakerTheme.accent.withValues(alpha: 0.12),
+            shape: BoxShape.circle,
+            border: Border.all(color: BedBreakerTheme.accent.withValues(alpha: 0.3), width: 2),
+          ),
+          child: const Icon(Icons.emoji_events_rounded, color: BedBreakerTheme.accent, size: 56),
+        ),
+        const SizedBox(height: 20),
+        Text(
+          'YOUR MISSION',
+          style: GoogleFonts.spaceGrotesk(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: BedBreakerTheme.textSecondary,
+            letterSpacing: 1.5,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.spaceGrotesk(
+              fontSize: 28,
+              fontWeight: FontWeight.w900,
+              color: BedBreakerTheme.textPrimary,
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Take a photo to prove it',
+          style: GoogleFonts.spaceGrotesk(
+            fontSize: 14,
+            color: BedBreakerTheme.textSecondary,
+          ),
+        ),
+      ],
     );
   }
 }
