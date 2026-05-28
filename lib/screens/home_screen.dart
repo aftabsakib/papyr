@@ -110,8 +110,42 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _fixAlarmPermission() async {
-    await Permission.scheduleExactAlarm.request();
-    await _recheckAlarmPermission();
+    if (!mounted) return;
+    final open = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: BedBreakerTheme.bgSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Allow Alarm Permission',
+          style: GoogleFonts.spaceGrotesk(
+              fontWeight: FontWeight.w900, color: BedBreakerTheme.textPrimary),
+        ),
+        content: Text(
+          'Open Settings, find BedBreaker, tap "Alarms & reminders", and toggle it ON.',
+          style: GoogleFonts.spaceGrotesk(
+              fontSize: 14, color: BedBreakerTheme.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel',
+                style: GoogleFonts.spaceGrotesk(
+                    color: BedBreakerTheme.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Open Settings',
+                style: GoogleFonts.spaceGrotesk(
+                    color: BedBreakerTheme.accent,
+                    fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+    if (open == true) {
+      await openAppSettings();
+    }
   }
 
   @override
@@ -194,38 +228,45 @@ class _AlarmPermissionBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: BedBreakerTheme.danger.withValues(alpha: 0.15),
-      child: InkWell(
-        onTap: onFix,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            children: [
-              const Icon(Icons.warning_amber_rounded,
-                  color: BedBreakerTheme.danger, size: 18),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Alarms won\'t ring — tap to grant alarm permission',
-                  style: GoogleFonts.spaceGrotesk(
-                    fontSize: 12,
-                    color: BedBreakerTheme.danger,
-                    fontWeight: FontWeight.w700,
-                  ),
+    return GestureDetector(
+      onTap: onFix,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: double.infinity,
+        color: BedBreakerTheme.danger.withValues(alpha: 0.18),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded,
+                color: BedBreakerTheme.danger, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Alarms won\'t ring — tap here to fix',
+                style: GoogleFonts.spaceGrotesk(
+                  fontSize: 13,
+                  color: BedBreakerTheme.danger,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              Text(
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: BedBreakerTheme.danger,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
                 'FIX',
                 style: GoogleFonts.spaceGrotesk(
-                  fontSize: 12,
-                  color: BedBreakerTheme.danger,
+                  fontSize: 11,
+                  color: Colors.white,
                   fontWeight: FontWeight.w900,
-                  letterSpacing: 1.0,
+                  letterSpacing: 0.8,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
