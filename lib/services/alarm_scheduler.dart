@@ -12,7 +12,8 @@ class AlarmScheduler {
     if (_tzInitialized) return;
     tz.initializeTimeZones();
     try {
-      final tzInfo = await FlutterTimezone.getLocalTimezone();
+      final tzInfo = await FlutterTimezone.getLocalTimezone()
+          .timeout(const Duration(seconds: 4));
       tz.setLocalLocation(tz.getLocation(tzInfo.identifier));
     } catch (_) {
       tz.setLocalLocation(tz.getLocation('UTC'));

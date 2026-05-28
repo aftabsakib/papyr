@@ -70,50 +70,65 @@ class _CreateAlarmScreenState extends State<CreateAlarmScreen> {
 
     setState(() => _saving = true);
 
-    double homeLat = 0, homeLng = 0, targetLat = 0, targetLng = 0;
+    try {
+      double homeLat = 0, homeLng = 0, targetLat = 0, targetLng = 0;
 
-    if (_missionType != MissionType.activity) {
-      final pos = await GpsService.getCurrentPosition();
-      if (pos == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Cannot get your location. Enable GPS.', style: GoogleFonts.spaceGrotesk()),
-            backgroundColor: BedBreakerTheme.danger,
-          ));
+      if (_missionType != MissionType.activity) {
+        final pos = await GpsService.getCurrentPosition();
+        if (pos == null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text('Cannot get your location. Enable GPS.', style: GoogleFonts.spaceGrotesk()),
+              backgroundColor: BedBreakerTheme.danger,
+            ));
+          }
+          return;
         }
-        setState(() => _saving = false);
-        return;
+        homeLat = pos.latitude;
+        homeLng = pos.longitude;
+        targetLat = _missionType == MissionType.distance ? pos.latitude : _targetLat!;
+        targetLng = _missionType == MissionType.distance ? pos.longitude : _targetLng!;
       }
-      homeLat = pos.latitude;
-      homeLng = pos.longitude;
-      targetLat = _missionType == MissionType.distance ? pos.latitude : _targetLat!;
-      targetLng = _missionType == MissionType.distance ? pos.longitude : _targetLng!;
+
+      final alarm = Alarm(
+        id: const Uuid().v4(),
+        label: _labelController.text.trim().isEmpty
+            ? 'Morning Mission'
+            : _labelController.text.trim(),
+        hour: _time.hour,
+        minute: _time.minute,
+        repeatDays: _repeatDays,
+        missionType: _missionType!,
+        homeLat: homeLat,
+        homeLng: homeLng,
+        targetLat: targetLat,
+        targetLng: targetLng,
+        radiusMeters: _missionType == MissionType.distance ? _distanceMeters : 50,
+        isActive: true,
+        missionLabel: _missionType == MissionType.activity ? _selectedActivity!.trim() : null,
+      );
+
+      final storage = AlarmStorage();
+      await storage.init();
+      await storage.saveAlarm(alarm);
+      try {
+        await AlarmScheduler.scheduleAlarm(alarm);
+      } catch (_) {
+        // Alarm saved; scheduling failed (e.g. exact-alarm permission not granted).
+        // App will reschedule on next open.
+      }
+
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Could not save alarm. Try again.', style: GoogleFonts.spaceGrotesk()),
+          backgroundColor: BedBreakerTheme.danger,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
-
-    final alarm = Alarm(
-      id: const Uuid().v4(),
-      label: _labelController.text.trim().isEmpty
-          ? 'Morning Mission'
-          : _labelController.text.trim(),
-      hour: _time.hour,
-      minute: _time.minute,
-      repeatDays: _repeatDays,
-      missionType: _missionType!,
-      homeLat: homeLat,
-      homeLng: homeLng,
-      targetLat: targetLat,
-      targetLng: targetLng,
-      radiusMeters: _missionType == MissionType.distance ? _distanceMeters : 50,
-      isActive: true,
-      missionLabel: _missionType == MissionType.activity ? _selectedActivity!.trim() : null,
-    );
-
-    final storage = AlarmStorage();
-    await storage.init();
-    await storage.saveAlarm(alarm);
-    await AlarmScheduler.scheduleAlarm(alarm);
-
-    if (mounted) Navigator.pop(context);
   }
 
   @override
