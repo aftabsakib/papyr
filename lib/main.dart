@@ -26,10 +26,12 @@ void main() async {
   Hive.registerAdapter(MissionTypeAdapter());
   Hive.registerAdapter(AlarmStatusAdapter());
 
-  await AlarmScheduler.init(
-    onNotificationTap: _handleNotificationTap,
-    onBackgroundNotificationTap: _onBackgroundNotificationTap,
-  );
+  try {
+    await AlarmScheduler.init(
+      onNotificationTap: _handleNotificationTap,
+      onBackgroundNotificationTap: _onBackgroundNotificationTap,
+    );
+  } catch (_) {};
 
   runApp(const BedBreakerApp());
 }
@@ -46,10 +48,12 @@ Future<void> _navigateToRinging(String alarmUuid) async {
   final alarm = storage.getAlarm(alarmUuid);
   if (alarm == null) return;
 
-  navigatorKey.currentState?.pushAndRemoveUntil(
-    MaterialPageRoute(builder: (_) => RingingScreen(alarm: alarm)),
-    (route) => route.isFirst,
-  );
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    navigatorKey.currentState?.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => RingingScreen(alarm: alarm)),
+      (route) => route.isFirst,
+    );
+  });
 }
 
 class BedBreakerApp extends StatelessWidget {
@@ -84,16 +88,18 @@ class _AppEntryPointState extends State<_AppEntryPoint> {
   }
 
   Future<void> _checkLaunch() async {
-    // Check if app was launched from a notification tap
-    final details = await FlutterLocalNotificationsPlugin()
-        .getNotificationAppLaunchDetails();
-    if (details?.didNotificationLaunchApp == true) {
-      final payload = details!.notificationResponse?.payload;
-      if (payload != null && payload.isNotEmpty) {
-        await _navigateToRinging(payload);
-        if (mounted) setState(() => _checking = false);
-        return;
+    try {
+      final details = await FlutterLocalNotificationsPlugin()
+          .getNotificationAppLaunchDetails()
+          .timeout(const Duration(seconds: 3));
+      if (details?.didNotificationLaunchApp == true) {
+        final payload = details!.notificationResponse?.payload;
+        if (payload != null && payload.isNotEmpty) {
+          await _navigateToRinging(payload);
+        }
       }
+    } catch (_) {
+      // Never block app open on notification check failure
     }
     if (mounted) setState(() => _checking = false);
   }
@@ -125,8 +131,7 @@ class _AppEntryPointState extends State<_AppEntryPoint> {
   }
 
   Future<bool> _permissionsGranted() async {
-    return await Permission.locationAlways.isGranted &&
-        await Permission.camera.isGranted &&
+    return await Permission.camera.isGranted &&
         await Permission.notification.isGranted;
   }
 }

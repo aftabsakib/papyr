@@ -8,17 +8,22 @@ class AlarmScheduler {
   static final _notifications = FlutterLocalNotificationsPlugin();
   static bool _tzInitialized = false;
 
+  static Future<void> _ensureTimezone() async {
+    if (_tzInitialized) return;
+    tz.initializeTimeZones();
+    try {
+      final tzInfo = await FlutterTimezone.getLocalTimezone();
+      tz.setLocalLocation(tz.getLocation(tzInfo.identifier));
+    } catch (_) {
+      tz.setLocalLocation(tz.getLocation('UTC'));
+    }
+    _tzInitialized = true;
+  }
+
   static Future<void> init({
     void Function(NotificationResponse)? onNotificationTap,
     void Function(NotificationResponse)? onBackgroundNotificationTap,
   }) async {
-    if (!_tzInitialized) {
-      tz.initializeTimeZones();
-      final tzInfo = await FlutterTimezone.getLocalTimezone();
-      tz.setLocalLocation(tz.getLocation(tzInfo.identifier));
-      _tzInitialized = true;
-    }
-
     await _notifications.initialize(
       InitializationSettings(
         android: const AndroidInitializationSettings('@mipmap/ic_launcher'),
@@ -74,6 +79,7 @@ class AlarmScheduler {
 
   static Future<void> scheduleAlarm(Alarm alarm) async {
     if (!alarm.isActive) return;
+    await _ensureTimezone();
     await cancelAlarm(alarm);
 
     final hasRepeat = alarm.repeatDays.any((d) => d);
@@ -121,10 +127,10 @@ class AlarmScheduler {
   }
 
   static Future<void> dismissNotification(String alarmId) async {
+    // Only cancel the one-shot (base) ID. Repeating day-offset notifications
+    // use matchDateTimeComponents and self-reschedule — cancelling them here
+    // would wipe all future occurrences of a repeating alarm.
     await _notifications.cancel(_notifId(alarmId));
-    for (int i = 1; i <= 7; i++) {
-      await _notifications.cancel(_notifId(alarmId, i));
-    }
   }
 
   static tz.TZDateTime _nextForWeekday(int hour, int minute, int weekday) {

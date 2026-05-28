@@ -209,7 +209,10 @@ class _MissionTypeSelectorState extends State<MissionTypeSelector> {
           _ActivityGrid(
             presets: _presets,
             selected: widget.selectedActivity,
-            onSelect: widget.onActivityChanged,
+            onSelect: (v) {
+              _customController.clear();
+              widget.onActivityChanged(v);
+            },
           ),
           const SizedBox(height: 10),
           TextField(
