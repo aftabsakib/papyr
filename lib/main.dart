@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -16,6 +17,38 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 @pragma('vm:entry-point')
 void _onBackgroundNotificationTap(NotificationResponse details) {
   // Background taps are routed via _handleNotificationTap when the app opens
+}
+
+/// Called by RescheduleService on device boot to reschedule all active alarms.
+/// Runs in a headless Flutter engine — no UI, no navigator.
+@pragma('vm:entry-point')
+void alarmBootCallback() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
+  Hive.registerAdapter(AlarmAdapter());
+  Hive.registerAdapter(AlarmHistoryAdapter());
+  Hive.registerAdapter(MissionTypeAdapter());
+  Hive.registerAdapter(AlarmStatusAdapter());
+
+  try { await AlarmScheduler.init(); } catch (_) {}
+
+  final storage = AlarmStorage();
+  await storage.init();
+
+  for (final alarm in storage.getAllAlarms()) {
+    if (!alarm.isActive) continue;
+    final next = AlarmScheduler.nextFireTime(alarm);
+    if (next == null) {
+      alarm.isActive = false;
+      await alarm.save();
+    } else {
+      try { await AlarmScheduler.scheduleAlarm(alarm); } catch (_) {}
+    }
+  }
+
+  try {
+    await const MethodChannel('bedbreaker/boot').invokeMethod<void>('done');
+  } catch (_) {}
 }
 
 void main() async {

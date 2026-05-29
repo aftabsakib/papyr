@@ -1,7 +1,7 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../services/alarm_scheduler.dart';
 import '../theme.dart';
 import 'home_screen.dart';
 
@@ -25,11 +25,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final camera = await Permission.camera.request();
     final notification = await Permission.notification.request();
     await Permission.ignoreBatteryOptimizations.request();
-    // Android 12 (API 31-32): exact alarms need user consent via Settings.
-    // Android 13+: USE_EXACT_ALARM in manifest is auto-granted; this is a no-op.
-    if (Platform.isAndroid) {
-      await Permission.scheduleExactAlarm.request();
-    }
+    // Full-screen intent: required on Android 14+ for the alarm to pop up on
+    // the lock screen. No-op on older versions (auto-granted there).
+    await AlarmScheduler.requestFullScreenIntentPermission();
+    // Exact alarm permission is handled by the HomeScreen banner using the
+    // correct flutter_local_notifications API (permission_handler has a bug).
 
     final allGranted = location.isGranted && camera.isGranted && notification.isGranted;
 

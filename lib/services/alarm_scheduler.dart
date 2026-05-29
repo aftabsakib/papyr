@@ -100,6 +100,13 @@ class AlarmScheduler {
     await _android?.requestExactAlarmsPermission();
   }
 
+  /// Opens the full-screen intent settings page on Android 14+.
+  /// No-op if already granted or on older Android (auto-granted there).
+  static Future<void> requestFullScreenIntentPermission() async {
+    if (!Platform.isAndroid) return;
+    try { await _android?.requestFullScreenIntentPermission(); } catch (_) {}
+  }
+
   // Throws PlatformException if exact alarm permission is not granted.
   // Callers are responsible for catching and showing appropriate UI.
   static Future<void> scheduleAlarm(Alarm alarm) async {
