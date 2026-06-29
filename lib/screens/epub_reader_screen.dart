@@ -84,9 +84,14 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
   }
 
   void _onEpubLoaded() {
-    _loaded = true;
     _controller.updateTheme(theme: _epubTheme());
     _controller.setFontSize(fontSize: _fontSizePx.toDouble());
+    // Rebuild so the loading overlay is removed once the book is displayed.
+    if (mounted) {
+      setState(() => _loaded = true);
+    } else {
+      _loaded = true;
+    }
   }
 
   void _onRelocated(EpubLocation location) {
