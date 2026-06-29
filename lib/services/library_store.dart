@@ -1,0 +1,92 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+import 'package:hive/hive.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+
+import '../models/book.dart';
+
+/// Owns the user's library: the Hive records plus the book and cover files on
+/// disk. A [ChangeNotifier] so the library screen rebuilds when books are
+/// added, removed, or their progress changes.
+class LibraryStore extends ChangeNotifier {
+  LibraryStore._(this._box, this.booksDir, this.coversDir);
+
+  static const _boxName = 'papyr_library';
+
+  final Box<Book> _box;
+
+  /// `<docs>/books` — where imported book files are copied.
+  final Directory booksDir;
+
+  /// `<docs>/covers` — where extracted cover images are written.
+  final Directory coversDir;
+
+  static Future<LibraryStore> open() async {
+    final box = await Hive.openBox<Book>(_boxName);
+    final docs = await getApplicationDocumentsDirectory();
+    final booksDir = Directory(p.join(docs.path, 'books'));
+    final coversDir = Directory(p.join(docs.path, 'covers'));
+    await booksDir.create(recursive: true);
+    await coversDir.create(recursive: true);
+    return LibraryStore._(box, booksDir, coversDir);
+  }
+
+  /// Books, most-recently-opened first (falling back to date added).
+  List<Book> get books {
+    final list = _box.values.toList();
+    list.sort((a, b) {
+      final at = a.lastOpenedAt ?? a.addedAt;
+      final bt = b.lastOpenedAt ?? b.addedAt;
+      return bt.compareTo(at);
+    });
+    return list;
+  }
+
+  bool get isEmpty => _box.isEmpty;
+
+  /// Absolute path to a book's file.
+  File bookFile(Book book) => File(p.join(booksDir.path, book.fileName));
+
+  /// Absolute path to a book's cover, or null if it has none.
+  File? coverFile(Book book) => book.coverFileName == null
+      ? null
+      : File(p.join(coversDir.path, book.coverFileName!));
+
+  Future<void> add(Book book) async {
+    await _box.put(book.id, book);
+    notifyListeners();
+  }
+
+  /// Removes a book and deletes its file and cover from disk.
+  Future<void> delete(Book book) async {
+    try {
+      final f = bookFile(book);
+      if (await f.exists()) await f.delete();
+      final c = coverFile(book);
+      if (c != null && await c.exists()) await c.delete();
+    } catch (_) {
+      // File already gone — the record removal below is what matters.
+    }
+    await book.delete();
+    notifyListeners();
+  }
+
+  /// Marks a book as opened now (moves it to the front of the library).
+  Future<void> markOpened(Book book) async {
+    book.lastOpenedAt = DateTime.now();
+    await book.save();
+    notifyListeners();
+  }
+
+  /// Persists reading position + progress after a session.
+  Future<void> saveProgress(Book book,
+      {required double progress, String? locator}) async {
+    book.progress = progress.clamp(0.0, 1.0);
+    if (locator != null) book.locator = locator;
+    book.lastOpenedAt = DateTime.now();
+    await book.save();
+    notifyListeners();
+  }
+}
