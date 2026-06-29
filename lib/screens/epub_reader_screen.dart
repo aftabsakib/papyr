@@ -9,6 +9,8 @@ import '../theme/app_theme.dart';
 import '../theme/paper_palette.dart';
 import '../widgets/bookmarks_sheet.dart';
 import '../widgets/reading_settings_sheet.dart';
+import '../widgets/toc_sheet.dart';
+import 'epub_search_screen.dart';
 
 /// Reads a reflowable EPUB with flutter_epub_viewer. The selected paper drives
 /// the page colours live, and font size / line spacing are adjustable. Reading
@@ -36,6 +38,7 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
   bool _loaded = false;
   String? _currentCfi;
   double _currentProgress = 0.0;
+  List<EpubChapter> _chapters = [];
 
   late double _fontScale = widget.settings.fontScale;
   late double _lineHeight = widget.settings.lineHeight;
@@ -132,6 +135,29 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
     );
   }
 
+  void _openToc() {
+    TocSheet.show(
+      context,
+      chapters: _chapters,
+      palette: _palette,
+      onJump: (href) {
+        if (_loaded) _controller.display(cfi: href);
+      },
+    );
+  }
+
+  Future<void> _openSearch() async {
+    final cfi = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => EpubSearchScreen(
+          controller: _controller,
+          palette: _palette,
+        ),
+      ),
+    );
+    if (cfi != null && _loaded) _controller.display(cfi: cfi);
+  }
+
   Future<void> _openSettings() async {
     await ReadingSettingsSheet.show(
       context,
@@ -166,19 +192,38 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
         ),
         actions: [
           IconButton(
-            tooltip: 'Add bookmark',
-            icon: Icon(Icons.bookmark_add_outlined, color: p.inkSecondary),
-            onPressed: _addBookmark,
+            tooltip: 'Contents',
+            icon: Icon(Icons.toc, color: p.inkSecondary),
+            onPressed: _openToc,
           ),
           IconButton(
-            tooltip: 'Bookmarks',
-            icon: Icon(Icons.bookmarks_outlined, color: p.inkSecondary),
-            onPressed: _openBookmarks,
+            tooltip: 'Search',
+            icon: Icon(Icons.search, color: p.inkSecondary),
+            onPressed: _openSearch,
           ),
           IconButton(
             tooltip: 'Reading settings',
             icon: Icon(Icons.text_fields, color: p.inkSecondary),
             onPressed: _openSettings,
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'More',
+            icon: Icon(Icons.more_vert, color: p.inkSecondary),
+            color: p.surface,
+            onSelected: (value) {
+              if (value == 'add') _addBookmark();
+              if (value == 'list') _openBookmarks();
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'add',
+                child: Text('Add bookmark', style: PapyrTheme.ui(p.inkPrimary, size: 14)),
+              ),
+              PopupMenuItem(
+                value: 'list',
+                child: Text('Bookmarks', style: PapyrTheme.ui(p.inkPrimary, size: 14)),
+              ),
+            ],
           ),
           const SizedBox(width: PapyrTheme.space1),
         ],
@@ -199,6 +244,7 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
                 theme: _epubTheme(),
               ),
               onEpubLoaded: _onEpubLoaded,
+              onChaptersLoaded: (chapters) => setState(() => _chapters = chapters),
               onRelocated: _onRelocated,
             ),
           ),

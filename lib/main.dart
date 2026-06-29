@@ -4,7 +4,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 import 'models/book.dart';
-import 'screens/library_screen.dart';
+import 'screens/root_screen.dart';
 import 'services/library_store.dart';
 import 'services/settings_store.dart';
 import 'services/theme_controller.dart';
@@ -63,7 +63,7 @@ class PapyrApp extends StatelessWidget {
           title: 'Papyr',
           debugShowCheckedModeBanner: false,
           theme: PapyrTheme.build(palette),
-          home: LibraryScreen(
+          home: RootScreen(
             themeController: themeController,
             settings: settings,
             library: library,

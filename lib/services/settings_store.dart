@@ -15,6 +15,7 @@ class SettingsStore {
   static const _kPaper = 'paper_theme';
   static const _kFontScale = 'reading_font_scale';
   static const _kLineHeight = 'reading_line_height';
+  static const _kOnboarded = 'onboarding_done';
 
   final Box _box;
 
@@ -45,4 +46,8 @@ class SettingsStore {
   double get lineHeight => (_box.get(_kLineHeight) as num?)?.toDouble() ?? 1.6;
   Future<void> setLineHeight(double v) =>
       _box.put(_kLineHeight, v.clamp(1.2, 2.4));
+
+  // ---- First-run onboarding ---------------------------------------------
+  bool get onboardingDone => _box.get(_kOnboarded, defaultValue: false) as bool;
+  Future<void> setOnboardingDone() => _box.put(_kOnboarded, true);
 }
