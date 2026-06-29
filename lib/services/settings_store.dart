@@ -16,6 +16,7 @@ class SettingsStore {
   static const _kFontScale = 'reading_font_scale';
   static const _kLineHeight = 'reading_line_height';
   static const _kOnboarded = 'onboarding_done';
+  static const _kPdfReflow = 'pdf_reflow_mode';
 
   final Box _box;
 
@@ -50,4 +51,10 @@ class SettingsStore {
   // ---- First-run onboarding ---------------------------------------------
   bool get onboardingDone => _box.get(_kOnboarded, defaultValue: false) as bool;
   Future<void> setOnboardingDone() => _box.put(_kOnboarded, true);
+
+  // ---- PDF reading mode --------------------------------------------------
+  /// When true, text-based PDFs open in the reflowed "Reading view" (ebook
+  /// style) rather than the fixed "Page view".
+  bool get pdfReflowMode => _box.get(_kPdfReflow, defaultValue: false) as bool;
+  Future<void> setPdfReflowMode(bool v) => _box.put(_kPdfReflow, v);
 }

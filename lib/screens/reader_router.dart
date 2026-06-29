@@ -23,6 +23,7 @@ class ReaderRouter {
       BookFormat.pdf => PdfReaderScreen(
           book: book,
           library: library,
+          settings: settings,
           themeController: themeController,
         ),
       BookFormat.epub => EpubReaderScreen(
