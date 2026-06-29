@@ -23,9 +23,10 @@ dependencies:
   intl: ^0.19.0
   pdfrx: ^2.4.4
   file_picker: ^11.0.2
-  epubx: ^4.0.0
   flutter_epub_viewer: ^1.2.8
-  image: ^3.3.0
+  archive: ^4.0.9
+  xml: ^6.6.1
+  collection: ^1.19.1
   # NOTE: the reader engines (PDF + EPUB) and the file picker are added via
   # `flutter pub add` so their versions resolve to the latest compatible release:
   #   pdfrx               -> PDF page rendering

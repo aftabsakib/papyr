@@ -1,14 +1,16 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:epubx/epubx.dart';
+import 'package:archive/archive.dart';
+import 'package:collection/collection.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 import 'package:pdfrx/pdfrx.dart';
 import 'package:uuid/uuid.dart';
+import 'package:xml/xml.dart';
 
 import '../models/book.dart';
 import 'library_store.dart';
@@ -131,6 +133,9 @@ class BookImporter {
   }
 
   // ---- EPUB --------------------------------------------------------------
+  // An EPUB is a ZIP. We read the OPF package document for the title/author and
+  // locate the cover image, copying its bytes straight out — no image re-encode,
+  // so there's no dependency on a specific `image` package version.
   Future<Book> _buildEpub(
       String id, String storedName, File file, String fallbackTitle) async {
     String title = fallbackTitle;
@@ -139,20 +144,35 @@ class BookImporter {
 
     try {
       final bytes = await file.readAsBytes();
-      final epub = await EpubReader.readBook(bytes);
-      final t = epub.Title?.trim();
-      if (t != null && t.isNotEmpty) title = t;
-      final a = epub.Author?.trim();
-      if (a != null && a.isNotEmpty) author = a;
+      final archive = ZipDecoder().decodeBytes(bytes);
 
-      final cover = epub.CoverImage;
-      if (cover != null) {
-        final png = Uint8List.fromList(img.encodePng(cover));
-        coverName = '$id.png';
-        await File(p.join(_store.coversDir.path, coverName)).writeAsBytes(png);
+      final opfPath = _findOpfPath(archive);
+      if (opfPath != null) {
+        final opfFile = archive.findFile(opfPath);
+        if (opfFile != null) {
+          final opf = XmlDocument.parse(utf8.decode(opfFile.content));
+
+          title = _firstText(opf, 'title') ?? fallbackTitle;
+          author = _firstText(opf, 'creator');
+
+          final coverHref = _findCoverHref(opf);
+          if (coverHref != null) {
+            // Cover href is relative to the OPF's directory (posix paths).
+            final opfDir = p.posix.dirname(opfPath);
+            final coverPath =
+                p.posix.normalize(p.posix.join(opfDir, coverHref));
+            final coverFile = archive.findFile(coverPath);
+            if (coverFile != null) {
+              final ext = p.extension(coverHref).toLowerCase();
+              coverName = '$id${ext.isEmpty ? '.img' : ext}';
+              await File(p.join(_store.coversDir.path, coverName))
+                  .writeAsBytes(coverFile.content);
+            }
+          }
+        }
       }
     } catch (_) {
-      // Metadata/cover extraction failed — keep the fallback title.
+      // Malformed EPUB — keep the filename-derived title.
     }
 
     return Book(
@@ -164,6 +184,51 @@ class BookImporter {
       coverFileName: coverName,
       addedAt: DateTime.now(),
     );
+  }
+
+  /// Reads META-INF/container.xml to find the OPF package document path.
+  String? _findOpfPath(Archive archive) {
+    final container = archive.findFile('META-INF/container.xml');
+    if (container == null) return null;
+    final doc = XmlDocument.parse(utf8.decode(container.content));
+    final rootfile = doc.findAllElements('rootfile', namespace: '*').firstOrNull;
+    return rootfile?.getAttribute('full-path');
+  }
+
+  /// First text value of a Dublin Core element (e.g. dc:title, dc:creator).
+  String? _firstText(XmlDocument opf, String localName) {
+    final el = opf.findAllElements(localName, namespace: '*').firstOrNull;
+    final text = el?.innerText.trim();
+    return (text == null || text.isEmpty) ? null : text;
+  }
+
+  /// Locates the cover image href, supporting EPUB3 (properties="cover-image")
+  /// and EPUB2 (<meta name="cover" content="itemId">).
+  String? _findCoverHref(XmlDocument opf) {
+    final items = opf.findAllElements('item', namespace: '*').toList();
+
+    // EPUB3: manifest item flagged as the cover image.
+    for (final item in items) {
+      final props = item.getAttribute('properties') ?? '';
+      if (props.split(RegExp(r'\s+')).contains('cover-image')) {
+        return item.getAttribute('href');
+      }
+    }
+
+    // EPUB2: a <meta name="cover" content="..."> points at a manifest item id.
+    final coverMeta = opf
+        .findAllElements('meta', namespace: '*')
+        .where((m) => m.getAttribute('name') == 'cover')
+        .firstOrNull;
+    final coverId = coverMeta?.getAttribute('content');
+    if (coverId != null) {
+      for (final item in items) {
+        if (item.getAttribute('id') == coverId) {
+          return item.getAttribute('href');
+        }
+      }
+    }
+    return null;
   }
 
   String _titleFromFileName(String name) {
