@@ -8,7 +8,6 @@ import '../theme/app_theme.dart';
 import '../theme/paper_palette.dart';
 import '../widgets/bookmarks_sheet.dart';
 import '../widgets/paper_picker_sheet.dart';
-import '../widgets/reader_paper_filter.dart';
 
 /// Reads a PDF with pdfrx, tinted to match the selected paper. Chrome (top bar)
 /// toggles on tap; reading position is saved as a page number.
@@ -52,6 +51,26 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
 
   void _onPaperChanged() {
     if (mounted) setState(() {});
+  }
+
+  /// Paints the paper tint over a rendered PDF page.
+  /// - Light papers: multiply by the page colour (white page -> paper, dark
+  ///   text stays dark).
+  /// - Night: difference-with-white inverts the page (white -> near-black,
+  ///   dark text -> light) for dark-room reading.
+  void _paintPaperTint(Canvas canvas, Rect pageRect, PdfPage page) {
+    final p = widget.themeController.palette;
+    final paint = Paint();
+    if (p.isDark) {
+      paint
+        ..color = Colors.white
+        ..blendMode = BlendMode.difference;
+    } else {
+      paint
+        ..color = p.page
+        ..blendMode = BlendMode.multiply;
+    }
+    canvas.drawRect(pageRect, paint);
   }
 
   void _saveProgress() {
@@ -105,41 +124,46 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
     final p = widget.themeController.palette;
     return Scaffold(
       backgroundColor: p.page,
+      // StackFit.expand forces the stack (and the non-positioned viewer) to
+      // fill the screen. Without it, the stack collapses to the height of its
+      // non-positioned children and the viewer renders as a thin band.
       body: Stack(
+        fit: StackFit.expand,
         children: [
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: () => setState(() => _chromeVisible = !_chromeVisible),
-              child: ColorFiltered(
-                colorFilter: ReaderPaperFilter.forPalette(p),
-                child: PdfViewer.file(
-                  widget.library.bookFile(widget.book).path,
-                  controller: _controller,
-                  initialPageNumber: _currentPage,
-                  params: PdfViewerParams(
-                    backgroundColor: Colors.white,
-                    onViewerReady: (document, _) {
-                      setState(() => _totalPages = document.pages.length);
-                      widget.book.pageCount ??= document.pages.length;
-                    },
-                    onPageChanged: (pageNumber) {
-                      if (pageNumber == null) return;
-                      setState(() => _currentPage = pageNumber);
-                    },
-                  ),
-                ),
+          GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () => setState(() => _chromeVisible = !_chromeVisible),
+            child: PdfViewer.file(
+              widget.library.bookFile(widget.book).path,
+              controller: _controller,
+              initialPageNumber: _currentPage,
+              params: PdfViewerParams(
+                backgroundColor: p.page,
+                pagePaintCallbacks: [_paintPaperTint],
+                onViewerReady: (document, _) {
+                  setState(() => _totalPages = document.pages.length);
+                  widget.book.pageCount ??= document.pages.length;
+                },
+                onPageChanged: (pageNumber) {
+                  if (pageNumber == null) return;
+                  setState(() => _currentPage = pageNumber);
+                },
               ),
             ),
           ),
-          _TopBar(
-            visible: _chromeVisible,
-            palette: p,
-            title: widget.book.title,
-            onBack: () => Navigator.of(context).pop(),
-            onPaper: () => PaperPickerSheet.show(context, widget.themeController),
-            onAddBookmark: _addBookmark,
-            onBookmarks: _openBookmarks,
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: _TopBar(
+              visible: _chromeVisible,
+              palette: p,
+              title: widget.book.title,
+              onBack: () => Navigator.of(context).pop(),
+              onPaper: () => PaperPickerSheet.show(context, widget.themeController),
+              onAddBookmark: _addBookmark,
+              onBookmarks: _openBookmarks,
+            ),
           ),
           _PageIndicator(
             visible: _chromeVisible,
