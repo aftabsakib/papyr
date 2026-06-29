@@ -98,18 +98,29 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Future<void> _import() async {
     setState(() => _importing = true);
     try {
-      final added = await _importer.pickAndImport();
+      final result = await _importer.pickAndImport();
       if (!mounted) return;
-      if (added.isEmpty) return;
+      final added = result.added;
+      if (added.isEmpty && result.duplicates == 0) return;
+
+      final String message;
+      if (added.isEmpty) {
+        message = result.duplicates == 1
+            ? 'Already in your library'
+            : 'All ${result.duplicates} already in your library';
+      } else {
+        final base = added.length == 1
+            ? 'Added "${added.first.title}"'
+            : 'Added ${added.length} books';
+        message = result.duplicates == 0
+            ? base
+            : '$base · ${result.duplicates} already in library';
+      }
+
       final p = widget.themeController.palette;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            added.length == 1
-                ? 'Added "${added.first.title}"'
-                : 'Added ${added.length} books',
-            style: PapyrTheme.ui(p.onAccent, size: 14),
-          ),
+          content: Text(message, style: PapyrTheme.ui(p.onAccent, size: 14)),
           backgroundColor: p.accent,
           behavior: SnackBarBehavior.floating,
         ),

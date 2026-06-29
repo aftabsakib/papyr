@@ -47,6 +47,7 @@ class BookCover extends StatelessWidget {
               ? Image.file(
                   coverFile!,
                   fit: BoxFit.cover,
+                  excludeFromSemantics: true,
                   errorBuilder: (_, __, ___) => _Fallback(book: book, palette: palette),
                 )
               : _Fallback(book: book, palette: palette),

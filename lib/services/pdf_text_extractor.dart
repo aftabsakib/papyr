@@ -6,17 +6,26 @@ class PdfTextExtractor {
   PdfTextExtractor._();
 
   /// Pulls text from every page and groups it into paragraphs.
-  static Future<List<String>> extractParagraphs(String path) async {
+  ///
+  /// [onProgress] reports 0.0–1.0 as pages are processed. The loop yields to the
+  /// event loop between pages so the UI stays responsive on large PDFs.
+  static Future<List<String>> extractParagraphs(
+    String path, {
+    void Function(double progress)? onProgress,
+  }) async {
     await pdfrxFlutterInitialize();
     final doc = await PdfDocument.openFile(path);
     try {
       final pages = <String>[];
-      for (final page in doc.pages) {
-        final raw = await page.loadText();
+      final total = doc.pages.length;
+      for (var i = 0; i < total; i++) {
+        final raw = await doc.pages[i].loadText();
         final text = raw?.fullText.trim() ?? '';
         if (text.isNotEmpty) pages.add(text);
+        onProgress?.call((i + 1) / total);
+        await Future<void>.delayed(Duration.zero);
       }
-      return _toParagraphs(pages);
+      return toParagraphs(pages);
     } finally {
       await doc.dispose();
     }
@@ -27,7 +36,8 @@ class PdfTextExtractor {
   /// - treats blank lines as paragraph breaks
   /// - joins remaining single line breaks into spaces
   /// - keeps page boundaries as paragraph breaks
-  static List<String> _toParagraphs(List<String> pages) {
+  /// Public for unit testing. Cleans raw page text into paragraphs.
+  static List<String> toParagraphs(List<String> pages) {
     final paragraphs = <String>[];
     for (final page in pages) {
       final normalized = page.replaceAll('\r\n', '\n').replaceAll('\r', '\n');

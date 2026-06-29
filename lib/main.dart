@@ -32,7 +32,7 @@ Future<void> main() async {
 }
 
 class PapyrApp extends StatelessWidget {
-  const PapyrApp({
+  PapyrApp({
     super.key,
     required this.themeController,
     required this.settings,
@@ -42,6 +42,10 @@ class PapyrApp extends StatelessWidget {
   final ThemeController themeController;
   final SettingsStore settings;
   final LibraryStore library;
+
+  /// Stable navigator for opening books that arrive via "Open with" while the
+  /// app is launching (more reliable than a transient screen context).
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   Widget build(BuildContext context) {
@@ -62,11 +66,13 @@ class PapyrApp extends StatelessWidget {
         return MaterialApp(
           title: 'Papyr',
           debugShowCheckedModeBanner: false,
+          navigatorKey: _navigatorKey,
           theme: PapyrTheme.build(palette),
           home: RootScreen(
             themeController: themeController,
             settings: settings,
             library: library,
+            navigatorKey: _navigatorKey,
           ),
         );
       },

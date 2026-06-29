@@ -45,6 +45,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
   late bool _reflow = widget.settings.pdfReflowMode;
   List<String>? _paragraphs;
   bool _extracting = false;
+  double _extractProgress = 0;
   bool _noText = false;
   late double _fontScale = widget.settings.fontScale;
   late double _lineHeight = widget.settings.lineHeight;
@@ -108,9 +109,31 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
   Future<bool> _ensureExtracted() async {
     if (_paragraphs != null) return true;
     if (_noText) return false;
-    setState(() => _extracting = true);
+
+    // Use cached text if we extracted this book before.
+    final cache = widget.library.reflowCacheFile(widget.book);
+    if (await cache.exists()) {
+      final lines = (await cache.readAsString())
+          .split('\n')
+          .where((l) => l.trim().isNotEmpty)
+          .toList();
+      if (lines.isNotEmpty) {
+        if (mounted) setState(() => _paragraphs = lines);
+        return true;
+      }
+    }
+
+    setState(() {
+      _extracting = true;
+      _extractProgress = 0;
+    });
     try {
-      final paras = await PdfTextExtractor.extractParagraphs(_path);
+      final paras = await PdfTextExtractor.extractParagraphs(
+        _path,
+        onProgress: (v) {
+          if (mounted) setState(() => _extractProgress = v);
+        },
+      );
       if (!mounted) return false;
       if (paras.isEmpty) {
         setState(() {
@@ -121,6 +144,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
         _snack('This PDF has no text to reflow — it may be scanned.');
         return false;
       }
+      await cache.writeAsString(paras.join('\n'));
       setState(() {
         _paragraphs = paras;
         _extracting = false;
@@ -188,6 +212,46 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
     );
   }
 
+  /// Prompts for a password on encrypted PDFs (pdfrx calls this until the
+  /// password works or the user cancels).
+  Future<String?> _askPassword() async {
+    final p = widget.themeController.palette;
+    final controller = TextEditingController();
+    final password = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: p.surface,
+        title: Text('Password required',
+            style: PapyrTheme.title(p.inkPrimary, size: 18)),
+        content: TextField(
+          controller: controller,
+          obscureText: true,
+          autofocus: true,
+          cursorColor: p.accent,
+          style: PapyrTheme.ui(p.inkPrimary, size: 16),
+          decoration: InputDecoration(
+            hintText: 'This PDF is locked',
+            hintStyle: PapyrTheme.ui(p.inkFaint, size: 16),
+          ),
+          onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: Text('Cancel', style: PapyrTheme.ui(p.inkSecondary)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, controller.text),
+            child: Text('Open',
+                style: PapyrTheme.ui(p.accent, weight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+    return (password == null || password.isEmpty) ? null : password;
+  }
+
   void _snack(String message) {
     final p = widget.themeController.palette;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -209,7 +273,26 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
         fit: StackFit.expand,
         children: [
           if (_extracting)
-            Center(child: CircularProgressIndicator(color: p.accent))
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: CircularProgressIndicator(
+                      color: p.accent,
+                      value: _extractProgress > 0 ? _extractProgress : null,
+                    ),
+                  ),
+                  const SizedBox(height: PapyrTheme.space4),
+                  Text(
+                    'Preparing reading view… ${(_extractProgress * 100).round()}%',
+                    style: PapyrTheme.ui(p.inkSecondary, size: 13),
+                  ),
+                ],
+              ),
+            )
           else if (showReflow)
             PdfReflowView(
               title: widget.book.title,
@@ -229,6 +312,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                 _path,
                 controller: _controller,
                 initialPageNumber: _currentPage,
+                passwordProvider: _askPassword,
                 params: PdfViewerParams(
                   backgroundColor: p.page,
                   pagePaintCallbacks: [_paintPaperTint],

@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 
 import 'package:archive/archive.dart';
 import 'package:collection/collection.dart';
+import 'package:crypto/crypto.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:pdfrx/pdfrx.dart';
@@ -14,6 +15,17 @@ import 'package:xml/xml.dart';
 
 import '../models/book.dart';
 import 'library_store.dart';
+
+/// The outcome of an import batch.
+class ImportResult {
+  const ImportResult(this.added, this.duplicates);
+
+  /// Books newly added to the library.
+  final List<Book> added;
+
+  /// How many selected files were skipped as already-imported duplicates.
+  final int duplicates;
+}
 
 /// Imports PDF and EPUB files into the library: copies the file into the app's
 /// books directory, extracts a title/author and cover, and creates the [Book]
@@ -26,32 +38,57 @@ class BookImporter {
   static const _uuid = Uuid();
   static const _coverTargetWidth = 360;
 
-  /// Opens the system file picker and imports everything the user selects.
-  /// Returns the books that were added (empty if the user cancelled).
-  Future<List<Book>> pickAndImport() async {
+  /// Opens the system file picker and imports everything the user selects,
+  /// skipping files already in the library (same content).
+  Future<ImportResult> pickAndImport() async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'epub'],
       allowMultiple: true,
     );
-    if (result == null) return const [];
+    if (result == null) return const ImportResult([], 0);
 
     final added = <Book>[];
+    var duplicates = 0;
     for (final file in result.files) {
       final path = file.path;
       if (path == null) continue;
       try {
-        final book = await _importFile(path, file.name);
+        final hash = sha1.convert(await File(path).readAsBytes()).toString();
+        if (_store.findByHash(hash) != null) {
+          duplicates++;
+          continue;
+        }
+        final book = await _importFile(path, file.name, hash);
         await _store.add(book);
         added.add(book);
       } catch (_) {
         // Skip a file that fails to import rather than aborting the batch.
       }
     }
-    return added;
+    return ImportResult(added, duplicates);
   }
 
-  Future<Book> _importFile(String srcPath, String displayName) async {
+  /// Imports a single file by path (used for "Open with Papyr" from other apps).
+  /// Returns the new book, the existing one if it's a duplicate, or null if the
+  /// file isn't a supported format or failed to import.
+  Future<Book?> importPath(String srcPath, {String? displayName}) async {
+    final ext = p.extension(srcPath).toLowerCase();
+    if (ext != '.pdf' && ext != '.epub') return null;
+    try {
+      final hash = sha1.convert(await File(srcPath).readAsBytes()).toString();
+      final existing = _store.findByHash(hash);
+      if (existing != null) return existing;
+      final book = await _importFile(srcPath, displayName ?? p.basename(srcPath), hash);
+      await _store.add(book);
+      return book;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<Book> _importFile(
+      String srcPath, String displayName, String hash) async {
     final ext = p.extension(srcPath).toLowerCase();
     final format = ext == '.pdf' ? BookFormat.pdf : BookFormat.epub;
     final id = _uuid.v4();
@@ -62,9 +99,11 @@ class BookImporter {
     await File(srcPath).copy(dest.path);
 
     final fallbackTitle = _titleFromFileName(displayName);
-    return format == BookFormat.pdf
+    final book = format == BookFormat.pdf
         ? await _buildPdf(id, storedName, dest, fallbackTitle)
         : await _buildEpub(id, storedName, dest, fallbackTitle);
+    book.contentHash = hash;
+    return book;
   }
 
   // ---- PDF ---------------------------------------------------------------

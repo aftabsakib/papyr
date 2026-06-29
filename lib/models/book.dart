@@ -59,6 +59,7 @@ class Book extends HiveObject {
     required this.addedAt,
     this.lastOpenedAt,
     List<Bookmark>? bookmarks,
+    this.contentHash,
   }) : bookmarks = bookmarks ?? <Bookmark>[];
 
   /// Stable unique id (uuid v4). Also used to name the cover file.
@@ -102,6 +103,10 @@ class Book extends HiveObject {
 
   @HiveField(11, defaultValue: <Bookmark>[])
   List<Bookmark> bookmarks;
+
+  /// SHA-1 of the source file, used to detect duplicate imports.
+  @HiveField(12)
+  String? contentHash;
 
   bool get hasStarted => progress > 0.0;
   bool get isFinished => progress >= 0.999;

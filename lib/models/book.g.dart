@@ -73,13 +73,14 @@ class BookAdapter extends TypeAdapter<Book> {
       lastOpenedAt: fields[10] as DateTime?,
       bookmarks:
           fields[11] == null ? [] : (fields[11] as List?)?.cast<Bookmark>(),
+      contentHash: fields[12] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, Book obj) {
     writer
-      ..writeByte(12)
+      ..writeByte(13)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -103,7 +104,9 @@ class BookAdapter extends TypeAdapter<Book> {
       ..writeByte(10)
       ..write(obj.lastOpenedAt)
       ..writeByte(11)
-      ..write(obj.bookmarks);
+      ..write(obj.bookmarks)
+      ..writeByte(12)
+      ..write(obj.contentHash);
   }
 
   @override

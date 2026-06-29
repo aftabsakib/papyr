@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
 import 'package:path/path.dart' as p;
@@ -11,7 +12,7 @@ import '../models/book.dart';
 /// disk. A [ChangeNotifier] so the library screen rebuilds when books are
 /// added, removed, or their progress changes.
 class LibraryStore extends ChangeNotifier {
-  LibraryStore._(this._box, this.booksDir, this.coversDir);
+  LibraryStore._(this._box, this.booksDir, this.coversDir, this.reflowDir);
 
   static const _boxName = 'papyr_library';
 
@@ -23,14 +24,29 @@ class LibraryStore extends ChangeNotifier {
   /// `<docs>/covers` — where extracted cover images are written.
   final Directory coversDir;
 
+  /// `<docs>/reflow` — cached extracted text for the PDF Reading view.
+  final Directory reflowDir;
+
   static Future<LibraryStore> open() async {
     final box = await Hive.openBox<Book>(_boxName);
     final docs = await getApplicationDocumentsDirectory();
     final booksDir = Directory(p.join(docs.path, 'books'));
     final coversDir = Directory(p.join(docs.path, 'covers'));
+    final reflowDir = Directory(p.join(docs.path, 'reflow'));
     await booksDir.create(recursive: true);
     await coversDir.create(recursive: true);
-    return LibraryStore._(box, booksDir, coversDir);
+    await reflowDir.create(recursive: true);
+    return LibraryStore._(box, booksDir, coversDir, reflowDir);
+  }
+
+  /// Cached reflow-text file for a book (may not exist yet).
+  File reflowCacheFile(Book book) =>
+      File(p.join(reflowDir.path, '${book.id}.txt'));
+
+  /// Returns an existing book with the same content hash, or null.
+  Book? findByHash(String? hash) {
+    if (hash == null) return null;
+    return _box.values.firstWhereOrNull((b) => b.contentHash == hash);
   }
 
   /// Books, most-recently-opened first (falling back to date added).
@@ -66,6 +82,8 @@ class LibraryStore extends ChangeNotifier {
       if (await f.exists()) await f.delete();
       final c = coverFile(book);
       if (c != null && await c.exists()) await c.delete();
+      final r = reflowCacheFile(book);
+      if (await r.exists()) await r.delete();
     } catch (_) {
       // File already gone — the record removal below is what matters.
     }
