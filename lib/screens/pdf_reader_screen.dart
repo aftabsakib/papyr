@@ -38,12 +38,20 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
   void initState() {
     super.initState();
     _totalPages = widget.book.pageCount;
+    // Rebuild when the paper changes so the page tint updates live — the pushed
+    // route doesn't rebuild from the app-level theme change on its own.
+    widget.themeController.addListener(_onPaperChanged);
   }
 
   @override
   void dispose() {
+    widget.themeController.removeListener(_onPaperChanged);
     _saveProgress();
     super.dispose();
+  }
+
+  void _onPaperChanged() {
+    if (mounted) setState(() {});
   }
 
   void _saveProgress() {
