@@ -48,3 +48,7 @@ app.*.map.json
 # Release signing secrets — never commit
 /android/key.properties
 RELEASE_SIGNING_README.md
+
+# Android build output
+/android/build/
+/android/app/build/
