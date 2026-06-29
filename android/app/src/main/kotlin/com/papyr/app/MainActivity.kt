@@ -1,4 +1,4 @@
-package com.bedbreaker.bedbreaker
+package com.papyr.app
 
 import io.flutter.embedding.android.FlutterActivity
 

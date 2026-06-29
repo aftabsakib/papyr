@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.bedbreaker.bedbreaker"
+    namespace = "com.papyr.app"
     compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
@@ -20,17 +20,8 @@ android {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
-    signingConfigs {
-        create("release") {
-            keyAlias = "bedbreaker"
-            keyPassword = "bedbreaker2026"
-            storeFile = file("../bedbreaker-release.jks")
-            storePassword = "bedbreaker2026"
-        }
-    }
-
     defaultConfig {
-        applicationId = "com.bedbreaker.bedbreaker"
+        applicationId = "com.papyr.app"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -39,7 +30,10 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            // TODO: wire a real Papyr release keystore before publishing.
+            // Until then, release builds are signed with the debug key so the
+            // app still compiles and installs for testing.
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = true
             isShrinkResources = true
         }
