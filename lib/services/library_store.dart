@@ -89,4 +89,20 @@ class LibraryStore extends ChangeNotifier {
     await book.save();
     notifyListeners();
   }
+
+  Future<void> addBookmark(Book book, Bookmark bookmark) async {
+    // Avoid duplicate bookmarks at the same spot.
+    if (book.bookmarks.any((b) => b.locator == bookmark.locator)) return;
+    book.bookmarks = [...book.bookmarks, bookmark]
+      ..sort((a, b) => a.progress.compareTo(b.progress));
+    await book.save();
+    notifyListeners();
+  }
+
+  Future<void> removeBookmark(Book book, Bookmark bookmark) async {
+    book.bookmarks =
+        book.bookmarks.where((b) => b.locator != bookmark.locator).toList();
+    await book.save();
+    notifyListeners();
+  }
 }

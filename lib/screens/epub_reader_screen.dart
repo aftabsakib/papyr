@@ -7,6 +7,7 @@ import '../services/settings_store.dart';
 import '../services/theme_controller.dart';
 import '../theme/app_theme.dart';
 import '../theme/paper_palette.dart';
+import '../widgets/bookmarks_sheet.dart';
 import '../widgets/reading_settings_sheet.dart';
 
 /// Reads a reflowable EPUB with flutter_epub_viewer. The selected paper drives
@@ -33,6 +34,8 @@ class EpubReaderScreen extends StatefulWidget {
 class _EpubReaderScreenState extends State<EpubReaderScreen> {
   final _controller = EpubController();
   bool _loaded = false;
+  String? _currentCfi;
+  double _currentProgress = 0.0;
 
   late double _fontScale = widget.settings.fontScale;
   late double _lineHeight = widget.settings.lineHeight;
@@ -84,10 +87,48 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
   }
 
   void _onRelocated(EpubLocation location) {
+    _currentCfi = location.startCfi;
+    _currentProgress = location.progress;
     widget.library.saveProgress(
       widget.book,
       progress: location.progress,
       locator: location.startCfi,
+    );
+  }
+
+  void _addBookmark() {
+    final cfi = _currentCfi;
+    if (cfi == null) return;
+    final percent = (_currentProgress * 100).round();
+    widget.library.addBookmark(
+      widget.book,
+      Bookmark(
+        locator: cfi,
+        label: '$percent% through',
+        progress: _currentProgress,
+        createdAt: DateTime.now(),
+      ),
+    );
+    final p = _palette;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Bookmark saved',
+            style: PapyrTheme.ui(p.onAccent, size: 14)),
+        backgroundColor: p.accent,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _openBookmarks() {
+    BookmarksSheet.show(
+      context,
+      book: widget.book,
+      palette: _palette,
+      onJump: (bm) {
+        if (_loaded) _controller.display(cfi: bm.locator);
+      },
+      onRemove: (bm) => widget.library.removeBookmark(widget.book, bm),
     );
   }
 
@@ -124,6 +165,16 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
           style: PapyrTheme.ui(p.inkPrimary, size: 15, weight: FontWeight.w600),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Add bookmark',
+            icon: Icon(Icons.bookmark_add_outlined, color: p.inkSecondary),
+            onPressed: _addBookmark,
+          ),
+          IconButton(
+            tooltip: 'Bookmarks',
+            icon: Icon(Icons.bookmarks_outlined, color: p.inkSecondary),
+            onPressed: _openBookmarks,
+          ),
           IconButton(
             tooltip: 'Reading settings',
             icon: Icon(Icons.text_fields, color: p.inkSecondary),

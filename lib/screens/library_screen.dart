@@ -10,6 +10,7 @@ import '../theme/paper_palette.dart';
 import '../widgets/book_grid_tile.dart';
 import '../widgets/paper_picker_sheet.dart';
 import 'reader_router.dart';
+import 'settings_screen.dart';
 
 /// The library — Papyr's home. Shows the shelf of imported books, handles
 /// importing, and lets the reader switch papers.
@@ -45,6 +46,18 @@ class _LibraryScreenState extends State<LibraryScreen> {
             icon: const Icon(Icons.contrast_outlined),
             onPressed: () =>
                 PaperPickerSheet.show(context, widget.themeController),
+          ),
+          IconButton(
+            tooltip: 'Settings',
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => SettingsScreen(
+                  themeController: widget.themeController,
+                  settings: widget.settings,
+                ),
+              ),
+            ),
           ),
           const SizedBox(width: PapyrTheme.space1),
         ],

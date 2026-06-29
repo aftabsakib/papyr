@@ -6,6 +6,7 @@ import '../services/library_store.dart';
 import '../services/theme_controller.dart';
 import '../theme/app_theme.dart';
 import '../theme/paper_palette.dart';
+import '../widgets/bookmarks_sheet.dart';
 import '../widgets/paper_picker_sheet.dart';
 import '../widgets/reader_paper_filter.dart';
 
@@ -55,6 +56,42 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
     );
   }
 
+  void _addBookmark() {
+    final total = _totalPages ?? widget.book.pageCount;
+    final progress = (total != null && total > 0) ? _currentPage / total : 0.0;
+    widget.library.addBookmark(
+      widget.book,
+      Bookmark(
+        locator: _currentPage.toString(),
+        label: 'Page $_currentPage',
+        progress: progress,
+        createdAt: DateTime.now(),
+      ),
+    );
+    final p = widget.themeController.palette;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Bookmarked page $_currentPage',
+            style: PapyrTheme.ui(p.onAccent, size: 14)),
+        backgroundColor: p.accent,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _openBookmarks() {
+    BookmarksSheet.show(
+      context,
+      book: widget.book,
+      palette: widget.themeController.palette,
+      onJump: (bm) {
+        final page = int.tryParse(bm.locator);
+        if (page != null) _controller.goToPage(pageNumber: page);
+      },
+      onRemove: (bm) => widget.library.removeBookmark(widget.book, bm),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = widget.themeController.palette;
@@ -93,6 +130,8 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
             title: widget.book.title,
             onBack: () => Navigator.of(context).pop(),
             onPaper: () => PaperPickerSheet.show(context, widget.themeController),
+            onAddBookmark: _addBookmark,
+            onBookmarks: _openBookmarks,
           ),
           _PageIndicator(
             visible: _chromeVisible,
@@ -113,6 +152,8 @@ class _TopBar extends StatelessWidget {
     required this.title,
     required this.onBack,
     required this.onPaper,
+    required this.onAddBookmark,
+    required this.onBookmarks,
   });
 
   final bool visible;
@@ -120,6 +161,8 @@ class _TopBar extends StatelessWidget {
   final String title;
   final VoidCallback onBack;
   final VoidCallback onPaper;
+  final VoidCallback onAddBookmark;
+  final VoidCallback onBookmarks;
 
   @override
   Widget build(BuildContext context) {
@@ -148,6 +191,16 @@ class _TopBar extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: PapyrTheme.ui(palette.inkPrimary, size: 15, weight: FontWeight.w600),
                     ),
+                  ),
+                  IconButton(
+                    tooltip: 'Add bookmark',
+                    icon: Icon(Icons.bookmark_add_outlined, color: palette.inkSecondary),
+                    onPressed: onAddBookmark,
+                  ),
+                  IconButton(
+                    tooltip: 'Bookmarks',
+                    icon: Icon(Icons.bookmarks_outlined, color: palette.inkSecondary),
+                    onPressed: onBookmarks,
                   ),
                   IconButton(
                     tooltip: 'Paper',

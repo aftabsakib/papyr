@@ -15,6 +15,7 @@ Future<void> main() async {
   await Hive.initFlutter();
   Hive.registerAdapter(BookAdapter());
   Hive.registerAdapter(BookFormatAdapter());
+  Hive.registerAdapter(BookmarkAdapter());
 
   // Warm up the PDF engine so the first cover render / open is snappy.
   await pdfrxFlutterInitialize();

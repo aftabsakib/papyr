@@ -13,6 +13,32 @@ enum BookFormat {
   String get label => this == BookFormat.pdf ? 'PDF' : 'EPUB';
 }
 
+/// A saved reading position the user can jump back to.
+@HiveType(typeId: 2)
+class Bookmark {
+  Bookmark({
+    required this.locator,
+    required this.label,
+    required this.progress,
+    required this.createdAt,
+  });
+
+  /// Where the bookmark points: a page number (PDF) or an EPUB CFI.
+  @HiveField(0)
+  final String locator;
+
+  /// Human-readable label, e.g. "Page 42" or a progress percent.
+  @HiveField(1)
+  final String label;
+
+  /// Progress fraction at the bookmark, for ordering and display.
+  @HiveField(2)
+  final double progress;
+
+  @HiveField(3)
+  final DateTime createdAt;
+}
+
 /// One book in the user's library.
 ///
 /// The actual book file and cover image live in the app's documents directory;
@@ -32,7 +58,8 @@ class Book extends HiveObject {
     this.locator,
     required this.addedAt,
     this.lastOpenedAt,
-  });
+    List<Bookmark>? bookmarks,
+  }) : bookmarks = bookmarks ?? <Bookmark>[];
 
   /// Stable unique id (uuid v4). Also used to name the cover file.
   @HiveField(0)
@@ -72,6 +99,9 @@ class Book extends HiveObject {
 
   @HiveField(10)
   DateTime? lastOpenedAt;
+
+  @HiveField(11, defaultValue: <Bookmark>[])
+  List<Bookmark> bookmarks;
 
   bool get hasStarted => progress > 0.0;
   bool get isFinished => progress >= 0.999;
