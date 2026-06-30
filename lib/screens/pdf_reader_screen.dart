@@ -49,6 +49,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen>
   List<ReflowBlock>? _blocks;
   bool _extracting = false;
   double _extractProgress = 0;
+  bool _ocrRunning = false;
   bool _noText = false;
   int _wordCount = 0;
   late double _fontScale = widget.settings.fontScale;
@@ -133,38 +134,96 @@ class _PdfReaderScreenState extends State<PdfReaderScreen>
       }
     }
 
+    // First, the fast path: read the PDF's embedded text layer.
+    final blocks = await _runExtraction(useOcr: false);
+    if (blocks == null) return false; // hard error, already reported
+    if (blocks.isNotEmpty) {
+      await cache.writeAsString(PdfTextExtractor.encodeCache(blocks));
+      if (mounted) setState(() => _applyBlocks(blocks));
+      return true;
+    }
+
+    // No text layer — it's a scanned PDF. Offer on-device OCR.
+    if (!mounted) return false;
+    final wantsOcr = await _confirmOcr();
+    if (!wantsOcr) {
+      setState(() {
+        _noText = true;
+        _reflow = false; // nothing to reflow — fall back to pages
+      });
+      return false;
+    }
+
+    final ocrBlocks = await _runExtraction(useOcr: true);
+    if (ocrBlocks == null) return false;
+    if (ocrBlocks.isEmpty) {
+      setState(() {
+        _noText = true;
+        _reflow = false;
+      });
+      _snack('Couldn’t find readable text on these pages.');
+      return false;
+    }
+    await cache.writeAsString(PdfTextExtractor.encodeCache(ocrBlocks));
+    if (mounted) setState(() => _applyBlocks(ocrBlocks));
+    return true;
+  }
+
+  /// Runs one extraction pass, driving the progress overlay. Returns the blocks,
+  /// or null if it threw (an error snack is shown in that case).
+  Future<List<ReflowBlock>?> _runExtraction({required bool useOcr}) async {
     setState(() {
       _extracting = true;
       _extractProgress = 0;
+      _ocrRunning = useOcr;
     });
     try {
       final blocks = await PdfTextExtractor.extractBlocks(
         _path,
+        useOcr: useOcr,
         onProgress: (v) {
           if (mounted) setState(() => _extractProgress = v);
         },
       );
-      if (!mounted) return false;
-      if (blocks.isEmpty) {
-        setState(() {
-          _noText = true;
-          _extracting = false;
-          _reflow = false; // nothing to reflow — fall back to pages
-        });
-        _snack('This PDF has no text to reflow — it may be scanned.');
-        return false;
-      }
-      await cache.writeAsString(PdfTextExtractor.encodeCache(blocks));
-      setState(() {
-        _applyBlocks(blocks);
-        _extracting = false;
-      });
-      return true;
+      if (mounted) setState(() => _extracting = false);
+      return blocks;
     } catch (_) {
       if (mounted) setState(() => _extracting = false);
       _snack('Could not read the text from this PDF.');
-      return false;
+      return null;
     }
+  }
+
+  /// Asks before running OCR — it's slow and worth a heads-up, but fully local.
+  Future<bool> _confirmOcr() async {
+    final p = widget.themeController.palette;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: p.surface,
+        title: Text(
+          'Make this scanned PDF readable?',
+          style: PapyrTheme.title(p.inkPrimary, size: 20),
+        ),
+        content: Text(
+          'This PDF has no text layer, so it looks scanned. Papyr can read the '
+          'text from each page right on your device — nothing leaves your phone. '
+          'It can take a little while for long books, and only happens once.',
+          style: PapyrTheme.ui(p.inkSecondary, size: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Not now', style: PapyrTheme.ui(p.inkSecondary, size: 14)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Read pages', style: PapyrTheme.ui(p.accent, size: 14)),
+          ),
+        ],
+      ),
+    );
+    return ok ?? false;
   }
 
   void _applyBlocks(List<ReflowBlock> blocks) {
@@ -329,7 +388,9 @@ class _PdfReaderScreenState extends State<PdfReaderScreen>
                   ),
                   const SizedBox(height: PapyrTheme.space4),
                   Text(
-                    'Preparing reading view… ${(_extractProgress * 100).round()}%',
+                    _ocrRunning
+                        ? 'Reading the pages… ${(_extractProgress * 100).round()}%'
+                        : 'Preparing reading view… ${(_extractProgress * 100).round()}%',
                     style: PapyrTheme.ui(p.inkSecondary, size: 13),
                   ),
                 ],

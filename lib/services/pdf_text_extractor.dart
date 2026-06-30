@@ -1,5 +1,7 @@
 import 'package:pdfrx/pdfrx.dart';
 
+import 'pdf_ocr.dart';
+
 /// A reflowable block of a PDF: either a heading or a body paragraph.
 enum ReflowBlockType { heading, paragraph }
 
@@ -63,12 +65,19 @@ class PdfTextExtractor {
   ///
   /// [onProgress] reports 0.0–1.0; the loop yields between pages so the UI stays
   /// responsive on large PDFs.
+  ///
+  /// When [useOcr] is true, any page with no embedded text layer is rendered
+  /// and read with on-device OCR (for scanned PDFs). OCR is slow, so it's
+  /// opt-in — callers run a fast text-only pass first and only enable OCR once
+  /// they know the PDF is scanned.
   static Future<List<ReflowBlock>> extractBlocks(
     String path, {
+    bool useOcr = false,
     void Function(double progress)? onProgress,
   }) async {
     await pdfrxFlutterInitialize();
     final doc = await PdfDocument.openFile(path);
+    final ocr = useOcr ? PdfOcr() : null;
     try {
       final total = doc.pages.length;
       final pageLines = <List<_Line>>[];
@@ -81,7 +90,13 @@ class PdfTextExtractor {
       for (var i = 0; i < total; i++) {
         final page = doc.pages[i];
         final st = await page.loadStructuredText();
-        final lines = _buildLines(st.fragments);
+        var lines = _buildLines(st.fragments);
+        if (lines.isEmpty && ocr != null) {
+          // Scanned page — recover its text with OCR.
+          lines = (await ocr.recognizePage(page))
+              .map((o) => _Line(o.text, o.left, o.right, o.top, o.bottom))
+              .toList();
+        }
         pageLines.add(lines);
         pageHeights.add(page.height);
         pageWidths.add(page.width);
@@ -98,7 +113,10 @@ class PdfTextExtractor {
       }
 
       final body = _median(bodyHeights);
-      final runningThreshold = (total * 0.4).ceil().clamp(2, total);
+      // A running header must repeat across pages, so it needs >=2 occurrences.
+      // For a 1-page doc nothing can "run", so set the bar out of reach.
+      final runningThreshold =
+          total < 2 ? total + 1 : (total * 0.4).ceil().clamp(2, total);
       final running = marginCounts.entries
           .where((e) => e.value >= runningThreshold)
           .map((e) => e.key)
@@ -149,6 +167,7 @@ class PdfTextExtractor {
       flush();
       return blocks;
     } finally {
+      await ocr?.dispose();
       await doc.dispose();
     }
   }
