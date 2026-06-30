@@ -8,9 +8,11 @@ import '../services/settings_store.dart';
 import '../services/theme_controller.dart';
 import '../theme/app_theme.dart';
 import '../theme/paper_palette.dart';
+import '../theme/reading_options.dart';
 import '../widgets/bookmarks_sheet.dart';
 import '../widgets/paper_picker_sheet.dart';
 import '../widgets/pdf_reflow_view.dart';
+import '../widgets/reader_comfort.dart';
 import '../widgets/reading_settings_sheet.dart';
 
 /// Reads a PDF two ways:
@@ -35,7 +37,8 @@ class PdfReaderScreen extends StatefulWidget {
   State<PdfReaderScreen> createState() => _PdfReaderScreenState();
 }
 
-class _PdfReaderScreenState extends State<PdfReaderScreen> {
+class _PdfReaderScreenState extends State<PdfReaderScreen>
+    with ReaderComfort<PdfReaderScreen> {
   final _controller = PdfViewerController();
   late int _currentPage = int.tryParse(widget.book.locator ?? '') ?? 1;
   int? _totalPages;
@@ -47,15 +50,23 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
   bool _extracting = false;
   double _extractProgress = 0;
   bool _noText = false;
+  int _wordCount = 0;
   late double _fontScale = widget.settings.fontScale;
   late double _lineHeight = widget.settings.lineHeight;
-  late double _reflowProgress = widget.book.progress;
+  late ReadingFont _font = widget.settings.readingFont;
+  late ReadingMargin _margin = widget.settings.readingMargin;
+  late double _warmth = widget.settings.warmth;
+  late double? _brightness = widget.settings.brightness;
+  final ValueNotifier<double> _reflowProgress =
+      ValueNotifier<double>(0);
 
   @override
   void initState() {
     super.initState();
+    _reflowProgress.value = widget.book.progress;
     _totalPages = widget.book.pageCount;
     widget.themeController.addListener(_onPaperChanged);
+    enterReaderComfort(brightness: _brightness);
     // If the user last left PDFs in Reading view, extract text up front.
     if (_reflow) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _ensureExtracted());
@@ -64,12 +75,14 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
 
   @override
   void dispose() {
+    exitReaderComfort();
     widget.themeController.removeListener(_onPaperChanged);
     if (_reflow) {
-      widget.library.saveProgress(widget.book, progress: _reflowProgress);
+      widget.library.saveProgress(widget.book, progress: _reflowProgress.value);
     } else {
       _savePageProgress();
     }
+    _reflowProgress.dispose();
     super.dispose();
   }
 
@@ -118,7 +131,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
           .where((l) => l.trim().isNotEmpty)
           .toList();
       if (lines.isNotEmpty) {
-        if (mounted) setState(() => _paragraphs = lines);
+        if (mounted) setState(() => _applyParagraphs(lines));
         return true;
       }
     }
@@ -146,7 +159,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
       }
       await cache.writeAsString(paras.join('\n'));
       setState(() {
-        _paragraphs = paras;
+        _applyParagraphs(paras);
         _extracting = false;
       });
       return true;
@@ -155,6 +168,12 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
       _snack('Could not read the text from this PDF.');
       return false;
     }
+  }
+
+  void _applyParagraphs(List<String> paras) {
+    _paragraphs = paras;
+    _wordCount = paras.fold<int>(
+        0, (sum, para) => sum + para.split(RegExp(r'\s+')).length);
   }
 
   Future<void> _toggleMode() async {
@@ -172,6 +191,10 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
       themeController: widget.themeController,
       fontScale: _fontScale,
       lineHeight: _lineHeight,
+      font: _font,
+      margin: _margin,
+      warmth: _warmth,
+      brightness: _brightness,
       onFontScale: (v) {
         widget.settings.setFontScale(v);
         setState(() => _fontScale = v);
@@ -179,6 +202,27 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
       onLineHeight: (v) {
         widget.settings.setLineHeight(v);
         setState(() => _lineHeight = v);
+      },
+      onFont: (v) {
+        widget.settings.setReadingFont(v);
+        setState(() => _font = v);
+      },
+      onMargin: (v) {
+        widget.settings.setReadingMargin(v);
+        setState(() => _margin = v);
+      },
+      onWarmth: (v) {
+        widget.settings.setWarmth(v);
+        setState(() => _warmth = v);
+      },
+      onBrightness: (v) {
+        widget.settings.setBrightness(v);
+        setState(() => _brightness = v);
+        if (v == null) {
+          resetBrightness();
+        } else {
+          applyBrightness(v);
+        }
       },
     );
   }
@@ -300,14 +344,16 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
               palette: p,
               fontScale: _fontScale,
               lineHeight: _lineHeight,
-              initialProgress: _reflowProgress,
-              onProgress: (v) => _reflowProgress = v,
+              font: _font,
+              margin: _margin,
+              initialProgress: _reflowProgress.value,
+              onProgress: (v) => _reflowProgress.value = v,
               onTap: () => setState(() => _chromeVisible = !_chromeVisible),
             )
           else
             GestureDetector(
               behavior: HitTestBehavior.translucent,
-              onTap: () => setState(() => _chromeVisible = !_chromeVisible),
+              onTapUp: (d) => _handlePageTap(d.globalPosition.dx),
               child: PdfViewer.file(
                 _path,
                 controller: _controller,
@@ -327,6 +373,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                 ),
               ),
             ),
+          WarmthOverlay(_warmth),
           Positioned(
             top: 0,
             left: 0,
@@ -339,12 +386,19 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
               onBack: () => Navigator.of(context).pop(),
               onToggleMode: _toggleMode,
               onPaper: () => PaperPickerSheet.show(context, widget.themeController),
-              onReadingSettings: _reflow ? _openReadingSettings : null,
+              onReadingSettings: _openReadingSettings,
               onAddBookmark: _reflow ? null : _addBookmark,
               onBookmarks: _reflow ? null : _openBookmarks,
             ),
           ),
-          if (!showReflow)
+          if (showReflow)
+            _ReflowIndicator(
+              visible: _chromeVisible,
+              palette: p,
+              progress: _reflowProgress,
+              wordCount: _wordCount,
+            )
+          else
             _PageIndicator(
               visible: _chromeVisible,
               palette: p,
@@ -352,6 +406,86 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
               total: _totalPages,
             ),
         ],
+      ),
+    );
+  }
+
+  void _handlePageTap(double dx) {
+    final width = MediaQuery.of(context).size.width;
+    final total = _totalPages ?? _currentPage;
+    if (dx < width * 0.30) {
+      final prev = (_currentPage - 1).clamp(1, total);
+      if (prev != _currentPage) _controller.goToPage(pageNumber: prev);
+    } else if (dx > width * 0.70) {
+      final next = (_currentPage + 1).clamp(1, total);
+      if (next != _currentPage) _controller.goToPage(pageNumber: next);
+    } else {
+      setState(() => _chromeVisible = !_chromeVisible);
+    }
+  }
+}
+
+/// Bottom pill for the Reading view: progress percent and an estimated time
+/// left, updated live without rebuilding the whole reader.
+class _ReflowIndicator extends StatelessWidget {
+  const _ReflowIndicator({
+    required this.visible,
+    required this.palette,
+    required this.progress,
+    required this.wordCount,
+  });
+
+  final bool visible;
+  final PaperPalette palette;
+  final ValueNotifier<double> progress;
+  final int wordCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 200),
+        opacity: visible ? 1 : 0,
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: PapyrTheme.space3),
+            child: Center(
+              child: ValueListenableBuilder<double>(
+                valueListenable: progress,
+                builder: (context, value, _) {
+                  final percent = (value.clamp(0.0, 1.0) * 100).round();
+                  final remaining = (wordCount * (1 - value)).round();
+                  final minutes = (remaining / 200).ceil();
+                  final time = wordCount <= 0
+                      ? ''
+                      : minutes <= 0
+                          ? ' · almost done'
+                          : ' · $minutes min left';
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: PapyrTheme.space3,
+                      vertical: PapyrTheme.space1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: palette.surface.withValues(alpha: 0.96),
+                      borderRadius: BorderRadius.circular(PapyrTheme.radiusLg),
+                      border: Border.all(color: palette.divider),
+                    ),
+                    child: Text(
+                      '$percent%$time',
+                      style: PapyrTheme.ui(palette.inkSecondary,
+                          size: 12, weight: FontWeight.w600),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -442,7 +576,7 @@ class _TopBar extends StatelessWidget {
                       },
                       itemBuilder: (context) => [
                         if (onReadingSettings != null)
-                          _item('text', 'Text size', palette),
+                          _item('text', 'Display', palette),
                         if (onAddBookmark != null)
                           _item('add', 'Add bookmark', palette),
                         if (onBookmarks != null)

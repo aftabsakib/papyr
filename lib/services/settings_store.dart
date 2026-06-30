@@ -1,6 +1,7 @@
 import 'package:hive/hive.dart';
 
 import '../theme/paper_palette.dart';
+import '../theme/reading_options.dart';
 
 /// Lightweight, Hive-backed key/value store for app-wide settings.
 ///
@@ -17,6 +18,10 @@ class SettingsStore {
   static const _kLineHeight = 'reading_line_height';
   static const _kOnboarded = 'onboarding_done';
   static const _kPdfReflow = 'pdf_reflow_mode';
+  static const _kFont = 'reading_font';
+  static const _kMargin = 'reading_margin';
+  static const _kWarmth = 'reading_warmth';
+  static const _kBrightness = 'reading_brightness';
 
   final Box _box;
 
@@ -57,4 +62,32 @@ class SettingsStore {
   /// style) rather than the fixed "Page view".
   bool get pdfReflowMode => _box.get(_kPdfReflow, defaultValue: false) as bool;
   Future<void> setPdfReflowMode(bool v) => _box.put(_kPdfReflow, v);
+
+  // ---- Reading typography & layout --------------------------------------
+  ReadingFont get readingFont {
+    final name = _box.get(_kFont) as String?;
+    return ReadingFont.values
+        .firstWhere((f) => f.name == name, orElse: () => ReadingFont.serif);
+  }
+
+  Future<void> setReadingFont(ReadingFont f) => _box.put(_kFont, f.name);
+
+  ReadingMargin get readingMargin {
+    final name = _box.get(_kMargin) as String?;
+    return ReadingMargin.values
+        .firstWhere((m) => m.name == name, orElse: () => ReadingMargin.normal);
+  }
+
+  Future<void> setReadingMargin(ReadingMargin m) => _box.put(_kMargin, m.name);
+
+  // ---- Screen comfort ----------------------------------------------------
+  /// Warm amber overlay strength, 0.0 (off) – 1.0.
+  double get warmth => (_box.get(_kWarmth) as num?)?.toDouble() ?? 0.0;
+  Future<void> setWarmth(double v) => _box.put(_kWarmth, v.clamp(0.0, 1.0));
+
+  /// In-app screen brightness 0.0–1.0, or null to follow the system.
+  double? get brightness => (_box.get(_kBrightness) as num?)?.toDouble();
+  Future<void> setBrightness(double? v) => v == null
+      ? _box.delete(_kBrightness)
+      : _box.put(_kBrightness, v.clamp(0.0, 1.0));
 }

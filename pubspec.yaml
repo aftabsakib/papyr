@@ -29,6 +29,8 @@ dependencies:
   collection: ^1.19.1
   # Content hashing for duplicate-import detection.
   crypto: ^3.0.5
+  wakelock_plus: ^1.5.2
+  screen_brightness: ^2.1.11
 
 dev_dependencies:
   flutter_test:
@@ -43,6 +45,11 @@ flutter:
   uses-material-design: true
   assets:
     - assets/icon/
+    - assets/fonts/
+  fonts:
+    - family: OpenDyslexic
+      fonts:
+        - asset: assets/fonts/OpenDyslexic-Regular.otf
 
 # App launcher icon — the Papyr 'p' monogram on cream.
 flutter_launcher_icons:

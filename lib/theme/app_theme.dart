@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'paper_palette.dart';
+import 'reading_options.dart';
 
 /// Design tokens + theme construction for Papyr.
 ///
@@ -33,6 +34,29 @@ class PapyrTheme {
         height: height,
         fontWeight: FontWeight.w400,
       );
+
+  // Reading text in the user's chosen font (Serif / Sans / OpenDyslexic).
+  static TextStyle readingWith(
+    ReadingFont font,
+    Color color, {
+    double size = 19,
+    double height = 1.6,
+  }) {
+    switch (font) {
+      case ReadingFont.serif:
+        return GoogleFonts.sourceSerif4(
+            color: color, fontSize: size, height: height, fontWeight: FontWeight.w400);
+      case ReadingFont.sans:
+        return GoogleFonts.sourceSans3(
+            color: color, fontSize: size, height: height, fontWeight: FontWeight.w400);
+      case ReadingFont.dyslexic:
+        return TextStyle(
+            fontFamily: 'OpenDyslexic',
+            color: color,
+            fontSize: size,
+            height: height);
+    }
+  }
 
   // Book + screen titles: an elegant, bookish display face.
   static TextStyle title(Color color, {double size = 22}) =>

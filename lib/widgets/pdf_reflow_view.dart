@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
 import '../theme/paper_palette.dart';
+import '../theme/reading_options.dart';
 
 /// Renders extracted PDF text as reflowable, paper-like reading — the
 /// Kindle-style view. Honors the paper palette plus font size and line spacing.
@@ -13,6 +14,8 @@ class PdfReflowView extends StatefulWidget {
     required this.palette,
     required this.fontScale,
     required this.lineHeight,
+    required this.font,
+    required this.margin,
     required this.initialProgress,
     required this.onProgress,
     this.onTap,
@@ -23,6 +26,8 @@ class PdfReflowView extends StatefulWidget {
   final PaperPalette palette;
   final double fontScale;
   final double lineHeight;
+  final ReadingFont font;
+  final ReadingMargin margin;
   final double initialProgress;
   final ValueChanged<double> onProgress;
   final VoidCallback? onTap;
@@ -74,10 +79,10 @@ class _PdfReflowViewState extends State<PdfReflowView> {
         child: SafeArea(
           child: ListView.builder(
             controller: _controller,
-            padding: const EdgeInsets.fromLTRB(
-              PapyrTheme.space5,
+            padding: EdgeInsets.fromLTRB(
+              widget.margin.horizontal,
               PapyrTheme.space7,
-              PapyrTheme.space5,
+              widget.margin.horizontal,
               PapyrTheme.space7,
             ),
             itemCount: widget.paragraphs.length + 1,
@@ -95,7 +100,8 @@ class _PdfReflowViewState extends State<PdfReflowView> {
                 padding: const EdgeInsets.only(bottom: PapyrTheme.space4),
                 child: Text(
                   widget.paragraphs[i - 1],
-                  style: PapyrTheme.reading(
+                  style: PapyrTheme.readingWith(
+                    widget.font,
                     p.inkPrimary,
                     size: fontSize,
                     height: widget.lineHeight,

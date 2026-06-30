@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_epub_viewer/flutter_epub_viewer.dart';
 
 import '../models/book.dart';
@@ -7,7 +10,9 @@ import '../services/settings_store.dart';
 import '../services/theme_controller.dart';
 import '../theme/app_theme.dart';
 import '../theme/paper_palette.dart';
+import '../theme/reading_options.dart';
 import '../widgets/bookmarks_sheet.dart';
+import '../widgets/reader_comfort.dart';
 import '../widgets/reading_settings_sheet.dart';
 import '../widgets/toc_sheet.dart';
 import 'epub_search_screen.dart';
@@ -33,7 +38,8 @@ class EpubReaderScreen extends StatefulWidget {
   State<EpubReaderScreen> createState() => _EpubReaderScreenState();
 }
 
-class _EpubReaderScreenState extends State<EpubReaderScreen> {
+class _EpubReaderScreenState extends State<EpubReaderScreen>
+    with ReaderComfort<EpubReaderScreen> {
   final _controller = EpubController();
   bool _loaded = false;
   String? _currentCfi;
@@ -42,17 +48,44 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
 
   late double _fontScale = widget.settings.fontScale;
   late double _lineHeight = widget.settings.lineHeight;
+  late ReadingFont _font = widget.settings.readingFont;
+  late ReadingMargin _margin = widget.settings.readingMargin;
+  late double _warmth = widget.settings.warmth;
+  late double? _brightness = widget.settings.brightness;
+
+  /// @font-face rule (base64-embedded OpenDyslexic) for the web view, built once.
+  Map<String, dynamic>? _dyslexicFace;
 
   @override
   void initState() {
     super.initState();
     widget.themeController.addListener(_onPaperChanged);
+    enterReaderComfort(brightness: _brightness);
+    if (_font == ReadingFont.dyslexic) _ensureDyslexicFont();
   }
 
   @override
   void dispose() {
+    exitReaderComfort();
     widget.themeController.removeListener(_onPaperChanged);
     super.dispose();
+  }
+
+  Future<void> _ensureDyslexicFont() async {
+    if (_dyslexicFace != null) return;
+    try {
+      final data = await rootBundle.load('assets/fonts/OpenDyslexic-Regular.otf');
+      final b64 = base64Encode(data.buffer.asUint8List());
+      _dyslexicFace = {
+        'font-family': '"OpenDyslexic"',
+        'font-style': 'normal',
+        'font-weight': 'normal',
+        'src': 'url(data:font/opentype;base64,$b64)',
+      };
+      if (_loaded) _controller.updateTheme(theme: _epubTheme());
+    } catch (_) {
+      // Fall back to the sans stack if the font can't be loaded.
+    }
   }
 
   PaperPalette get _palette => widget.themeController.palette;
@@ -67,19 +100,27 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
   EpubTheme _epubTheme() {
     final p = _palette;
     final lh = _lineHeight.toStringAsFixed(2);
+    final m = '${_margin.cssMargin}px';
+    final css = <String, dynamic>{
+      'body': {
+        'background': _hex(p.page),
+        'color': _hex(p.inkPrimary),
+        'line-height': lh,
+        'font-family': _font.cssFamily,
+        'padding-left': m,
+        'padding-right': m,
+      },
+      'p': {'line-height': lh},
+      'a': {'color': _hex(p.accent)},
+    };
+    // Embed OpenDyslexic into the page when chosen and loaded.
+    if (_font == ReadingFont.dyslexic && _dyslexicFace != null) {
+      css['@font-face'] = _dyslexicFace;
+    }
     return EpubTheme.custom(
       backgroundDecoration: BoxDecoration(color: p.page),
       foregroundColor: p.inkPrimary,
-      customCss: {
-        'body': {
-          'background': _hex(p.page),
-          'color': _hex(p.inkPrimary),
-          'line-height': lh,
-          'font-family': '"Georgia", "Times New Roman", serif',
-        },
-        'p': {'line-height': lh},
-        'a': {'color': _hex(p.accent)},
-      },
+      customCss: css,
     );
   }
 
@@ -169,6 +210,10 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
       themeController: widget.themeController,
       fontScale: _fontScale,
       lineHeight: _lineHeight,
+      font: _font,
+      margin: _margin,
+      warmth: _warmth,
+      brightness: _brightness,
       onFontScale: (v) {
         setState(() => _fontScale = v);
         widget.settings.setFontScale(v);
@@ -178,6 +223,33 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
         setState(() => _lineHeight = v);
         widget.settings.setLineHeight(v);
         if (_loaded) _controller.updateTheme(theme: _epubTheme());
+      },
+      onFont: (v) {
+        setState(() => _font = v);
+        widget.settings.setReadingFont(v);
+        if (v == ReadingFont.dyslexic && _dyslexicFace == null) {
+          _ensureDyslexicFont();
+        } else if (_loaded) {
+          _controller.updateTheme(theme: _epubTheme());
+        }
+      },
+      onMargin: (v) {
+        setState(() => _margin = v);
+        widget.settings.setReadingMargin(v);
+        if (_loaded) _controller.updateTheme(theme: _epubTheme());
+      },
+      onWarmth: (v) {
+        setState(() => _warmth = v);
+        widget.settings.setWarmth(v);
+      },
+      onBrightness: (v) {
+        setState(() => _brightness = v);
+        widget.settings.setBrightness(v);
+        if (v == null) {
+          resetBrightness();
+        } else {
+          applyBrightness(v);
+        }
       },
     );
   }
@@ -262,6 +334,7 @@ class _EpubReaderScreenState extends State<EpubReaderScreen> {
                 ),
               ),
             ),
+          WarmthOverlay(_warmth),
         ],
       ),
     );

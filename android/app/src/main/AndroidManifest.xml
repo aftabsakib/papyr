@@ -4,6 +4,8 @@
          book files the user explicitly picks. INTERNET is kept only so the
          EPUB rendering engine (a local web view) can load its bundled assets. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Keep the screen awake while reading. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
 
     <application
         android:label="Papyr"
