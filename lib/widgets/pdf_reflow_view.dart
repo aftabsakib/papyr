@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/pdf_text_extractor.dart';
 import '../theme/app_theme.dart';
 import '../theme/paper_palette.dart';
 import '../theme/reading_options.dart';
@@ -10,7 +11,7 @@ class PdfReflowView extends StatefulWidget {
   const PdfReflowView({
     super.key,
     required this.title,
-    required this.paragraphs,
+    required this.blocks,
     required this.palette,
     required this.fontScale,
     required this.lineHeight,
@@ -22,7 +23,7 @@ class PdfReflowView extends StatefulWidget {
   });
 
   final String title;
-  final List<String> paragraphs;
+  final List<ReflowBlock> blocks;
   final PaperPalette palette;
   final double fontScale;
   final double lineHeight;
@@ -85,7 +86,7 @@ class _PdfReflowViewState extends State<PdfReflowView> {
               widget.margin.horizontal,
               PapyrTheme.space7,
             ),
-            itemCount: widget.paragraphs.length + 1,
+            itemCount: widget.blocks.length + 1,
             itemBuilder: (context, i) {
               if (i == 0) {
                 return Padding(
@@ -96,10 +97,23 @@ class _PdfReflowViewState extends State<PdfReflowView> {
                   ),
                 );
               }
+              final block = widget.blocks[i - 1];
+              if (block.isHeading) {
+                return Padding(
+                  padding: const EdgeInsets.only(
+                    top: PapyrTheme.space4,
+                    bottom: PapyrTheme.space3,
+                  ),
+                  child: Text(
+                    block.text,
+                    style: PapyrTheme.title(p.inkPrimary, size: fontSize * 1.15),
+                  ),
+                );
+              }
               return Padding(
                 padding: const EdgeInsets.only(bottom: PapyrTheme.space4),
                 child: Text(
-                  widget.paragraphs[i - 1],
+                  block.text,
                   style: PapyrTheme.readingWith(
                     widget.font,
                     p.inkPrimary,

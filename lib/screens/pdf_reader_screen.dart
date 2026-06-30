@@ -46,7 +46,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen>
 
   // Reading (reflow) mode.
   late bool _reflow = widget.settings.pdfReflowMode;
-  List<String>? _paragraphs;
+  List<ReflowBlock>? _blocks;
   bool _extracting = false;
   double _extractProgress = 0;
   bool _noText = false;
@@ -120,18 +120,15 @@ class _PdfReaderScreenState extends State<PdfReaderScreen>
 
   // ---- Mode toggle + extraction -----------------------------------------
   Future<bool> _ensureExtracted() async {
-    if (_paragraphs != null) return true;
+    if (_blocks != null) return true;
     if (_noText) return false;
 
-    // Use cached text if we extracted this book before.
+    // Use cached blocks if we extracted this book before (and the format matches).
     final cache = widget.library.reflowCacheFile(widget.book);
     if (await cache.exists()) {
-      final lines = (await cache.readAsString())
-          .split('\n')
-          .where((l) => l.trim().isNotEmpty)
-          .toList();
-      if (lines.isNotEmpty) {
-        if (mounted) setState(() => _applyParagraphs(lines));
+      final cached = PdfTextExtractor.decodeCache(await cache.readAsString());
+      if (cached != null && cached.isNotEmpty) {
+        if (mounted) setState(() => _applyBlocks(cached));
         return true;
       }
     }
@@ -141,14 +138,14 @@ class _PdfReaderScreenState extends State<PdfReaderScreen>
       _extractProgress = 0;
     });
     try {
-      final paras = await PdfTextExtractor.extractParagraphs(
+      final blocks = await PdfTextExtractor.extractBlocks(
         _path,
         onProgress: (v) {
           if (mounted) setState(() => _extractProgress = v);
         },
       );
       if (!mounted) return false;
-      if (paras.isEmpty) {
+      if (blocks.isEmpty) {
         setState(() {
           _noText = true;
           _extracting = false;
@@ -157,9 +154,9 @@ class _PdfReaderScreenState extends State<PdfReaderScreen>
         _snack('This PDF has no text to reflow — it may be scanned.');
         return false;
       }
-      await cache.writeAsString(paras.join('\n'));
+      await cache.writeAsString(PdfTextExtractor.encodeCache(blocks));
       setState(() {
-        _applyParagraphs(paras);
+        _applyBlocks(blocks);
         _extracting = false;
       });
       return true;
@@ -170,10 +167,11 @@ class _PdfReaderScreenState extends State<PdfReaderScreen>
     }
   }
 
-  void _applyParagraphs(List<String> paras) {
-    _paragraphs = paras;
-    _wordCount = paras.fold<int>(
-        0, (sum, para) => sum + para.split(RegExp(r'\s+')).length);
+  void _applyBlocks(List<ReflowBlock> blocks) {
+    _blocks = blocks;
+    _wordCount = blocks
+        .where((b) => !b.isHeading)
+        .fold<int>(0, (sum, b) => sum + b.text.split(RegExp(r'\s+')).length);
   }
 
   Future<void> _toggleMode() async {
@@ -310,7 +308,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen>
   @override
   Widget build(BuildContext context) {
     final p = widget.themeController.palette;
-    final showReflow = _reflow && _paragraphs != null;
+    final showReflow = _reflow && _blocks != null;
     return Scaffold(
       backgroundColor: p.page,
       body: Stack(
@@ -340,7 +338,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen>
           else if (showReflow)
             PdfReflowView(
               title: widget.book.title,
-              paragraphs: _paragraphs!,
+              blocks: _blocks!,
               palette: p,
               fontScale: _fontScale,
               lineHeight: _lineHeight,
