@@ -1,5 +1,6 @@
 import 'package:hive/hive.dart';
 
+import '../theme/library_options.dart';
 import '../theme/paper_palette.dart';
 import '../theme/reading_options.dart';
 
@@ -22,6 +23,8 @@ class SettingsStore {
   static const _kMargin = 'reading_margin';
   static const _kWarmth = 'reading_warmth';
   static const _kBrightness = 'reading_brightness';
+  static const _kLibrarySort = 'library_sort';
+  static const _kLibraryFilter = 'library_filter';
 
   final Box _box;
 
@@ -90,4 +93,22 @@ class SettingsStore {
   Future<void> setBrightness(double? v) => v == null
       ? _box.delete(_kBrightness)
       : _box.put(_kBrightness, v.clamp(0.0, 1.0));
+
+  // ---- Library organisation ----------------------------------------------
+  LibrarySort get librarySort {
+    final name = _box.get(_kLibrarySort) as String?;
+    return LibrarySort.values
+        .firstWhere((s) => s.name == name, orElse: () => LibrarySort.recent);
+  }
+
+  Future<void> setLibrarySort(LibrarySort s) => _box.put(_kLibrarySort, s.name);
+
+  LibraryFilter get libraryFilter {
+    final name = _box.get(_kLibraryFilter) as String?;
+    return LibraryFilter.values
+        .firstWhere((f) => f.name == name, orElse: () => LibraryFilter.all);
+  }
+
+  Future<void> setLibraryFilter(LibraryFilter f) =>
+      _box.put(_kLibraryFilter, f.name);
 }

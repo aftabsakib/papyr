@@ -91,6 +91,25 @@ class LibraryStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Updates a book's editable metadata (title and author).
+  Future<void> updateDetails(Book book,
+      {required String title, String? author}) async {
+    final t = title.trim();
+    if (t.isNotEmpty) book.title = t;
+    final a = author?.trim();
+    book.author = (a == null || a.isEmpty) ? null : a;
+    await book.save();
+    notifyListeners();
+  }
+
+  /// Marks a book finished (progress 1.0) or back to unread (0.0) by hand,
+  /// without touching its last-opened time or saved position.
+  Future<void> setReadStatus(Book book, {required bool finished}) async {
+    book.progress = finished ? 1.0 : 0.0;
+    await book.save();
+    notifyListeners();
+  }
+
   /// Marks a book as opened now (moves it to the front of the library).
   Future<void> markOpened(Book book) async {
     book.lastOpenedAt = DateTime.now();
