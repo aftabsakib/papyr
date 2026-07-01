@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:uuid/uuid.dart';
 
 import '../models/book.dart';
 
@@ -12,11 +13,20 @@ import '../models/book.dart';
 /// disk. A [ChangeNotifier] so the library screen rebuilds when books are
 /// added, removed, or their progress changes.
 class LibraryStore extends ChangeNotifier {
-  LibraryStore._(this._box, this.booksDir, this.coversDir, this.reflowDir);
+  LibraryStore._(
+    this._box,
+    this._collectionsBox,
+    this.booksDir,
+    this.coversDir,
+    this.reflowDir,
+  );
 
   static const _boxName = 'papyr_library';
+  static const _collectionsBoxName = 'papyr_collections';
+  static const _uuid = Uuid();
 
   final Box<Book> _box;
+  final Box<Collection> _collectionsBox;
 
   /// `<docs>/books` — where imported book files are copied.
   final Directory booksDir;
@@ -29,6 +39,7 @@ class LibraryStore extends ChangeNotifier {
 
   static Future<LibraryStore> open() async {
     final box = await Hive.openBox<Book>(_boxName);
+    final collectionsBox = await Hive.openBox<Collection>(_collectionsBoxName);
     final docs = await getApplicationDocumentsDirectory();
     final booksDir = Directory(p.join(docs.path, 'books'));
     final coversDir = Directory(p.join(docs.path, 'covers'));
@@ -36,7 +47,7 @@ class LibraryStore extends ChangeNotifier {
     await booksDir.create(recursive: true);
     await coversDir.create(recursive: true);
     await reflowDir.create(recursive: true);
-    return LibraryStore._(box, booksDir, coversDir, reflowDir);
+    return LibraryStore._(box, collectionsBox, booksDir, coversDir, reflowDir);
   }
 
   /// Cached reflow-text file for a book (may not exist yet).
@@ -139,6 +150,62 @@ class LibraryStore extends ChangeNotifier {
   Future<void> removeBookmark(Book book, Bookmark bookmark) async {
     book.bookmarks =
         book.bookmarks.where((b) => b.locator != bookmark.locator).toList();
+    await book.save();
+    notifyListeners();
+  }
+
+  // ---- Collections -------------------------------------------------------
+  /// All collections, alphabetical by name.
+  List<Collection> get collections {
+    final list = _collectionsBox.values.toList();
+    list.sort(
+        (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return list;
+  }
+
+  /// Looks up a collection by id, or null if it no longer exists.
+  Collection? collectionById(String id) =>
+      _collectionsBox.values.firstWhereOrNull((c) => c.id == id);
+
+  /// How many books are in a collection.
+  int bookCountIn(String collectionId) =>
+      _box.values.where((b) => b.collectionIds.contains(collectionId)).length;
+
+  Future<Collection> createCollection(String name) async {
+    final collection = Collection(
+      id: _uuid.v4(),
+      name: name.trim(),
+      createdAt: DateTime.now(),
+    );
+    await _collectionsBox.put(collection.id, collection);
+    notifyListeners();
+    return collection;
+  }
+
+  Future<void> renameCollection(Collection collection, String name) async {
+    final n = name.trim();
+    if (n.isEmpty) return;
+    collection.name = n;
+    await collection.save();
+    notifyListeners();
+  }
+
+  /// Deletes a collection and removes its id from every book (the books stay).
+  Future<void> deleteCollection(Collection collection) async {
+    for (final book in _box.values) {
+      if (book.collectionIds.contains(collection.id)) {
+        book.collectionIds =
+            book.collectionIds.where((id) => id != collection.id).toList();
+        await book.save();
+      }
+    }
+    await collection.delete();
+    notifyListeners();
+  }
+
+  /// Replaces a book's collection membership with [ids].
+  Future<void> setBookCollections(Book book, Set<String> ids) async {
+    book.collectionIds = ids.toList();
     await book.save();
     notifyListeners();
   }

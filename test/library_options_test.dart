@@ -10,6 +10,7 @@ Book _book({
   int? pageCount,
   DateTime? added,
   DateTime? opened,
+  List<String>? collectionIds,
 }) {
   return Book(
     id: title,
@@ -21,6 +22,7 @@ Book _book({
     progress: progress,
     addedAt: added ?? DateTime(2026, 1, 1),
     lastOpenedAt: opened,
+    collectionIds: collectionIds,
   );
 }
 
@@ -71,6 +73,27 @@ void main() {
 
       final finished = LibraryQuery.apply(books, filter: LibraryFilter.finished);
       expect(finished.map((b) => b.title), ['Dune']);
+    });
+
+    test('collection scope keeps only member books, composes with filter', () {
+      final shelf = [
+        _book(title: 'A', progress: 1.0, collectionIds: ['sci-fi']),
+        _book(title: 'B', progress: 0.3, collectionIds: ['sci-fi']),
+        _book(title: 'C', collectionIds: ['history']),
+        _book(title: 'D'), // in no collection
+      ];
+      final sciFi = LibraryQuery.apply(shelf, collectionId: 'sci-fi');
+      expect(sciFi.map((b) => b.title).toSet(), {'A', 'B'});
+
+      // Collection + status filter compose.
+      final sciFiFinished = LibraryQuery.apply(shelf,
+          collectionId: 'sci-fi', filter: LibraryFilter.finished);
+      expect(sciFiFinished.map((b) => b.title), ['A']);
+
+      // A book can be in more than one collection.
+      final multi = _book(title: 'X', collectionIds: ['sci-fi', 'history']);
+      expect(LibraryQuery.apply([multi], collectionId: 'sci-fi'), hasLength(1));
+      expect(LibraryQuery.apply([multi], collectionId: 'history'), hasLength(1));
     });
 
     test('sort by title is alphabetical', () {

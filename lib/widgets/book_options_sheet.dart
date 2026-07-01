@@ -18,6 +18,7 @@ class BookOptionsSheet extends StatelessWidget {
     required this.palette,
     required this.onEdit,
     required this.onToggleFinished,
+    required this.onAddToCollections,
     required this.onRemove,
   });
 
@@ -26,6 +27,7 @@ class BookOptionsSheet extends StatelessWidget {
   final PaperPalette palette;
   final VoidCallback onEdit;
   final VoidCallback onToggleFinished;
+  final VoidCallback onAddToCollections;
   final VoidCallback onRemove;
 
   static Future<void> show(
@@ -35,6 +37,7 @@ class BookOptionsSheet extends StatelessWidget {
     required PaperPalette palette,
     required VoidCallback onEdit,
     required VoidCallback onToggleFinished,
+    required VoidCallback onAddToCollections,
     required VoidCallback onRemove,
   }) {
     return showModalBottomSheet<void>(
@@ -50,6 +53,7 @@ class BookOptionsSheet extends StatelessWidget {
         palette: palette,
         onEdit: onEdit,
         onToggleFinished: onToggleFinished,
+        onAddToCollections: onAddToCollections,
         onRemove: onRemove,
       ),
     );
@@ -130,6 +134,15 @@ class BookOptionsSheet extends StatelessWidget {
             onTap: () {
               Navigator.pop(context);
               onToggleFinished();
+            },
+          ),
+          _Action(
+            icon: Icons.collections_bookmark_outlined,
+            label: 'Add to collections',
+            palette: p,
+            onTap: () {
+              Navigator.pop(context);
+              onAddToCollections();
             },
           ),
           _Action(

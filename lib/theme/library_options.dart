@@ -55,9 +55,13 @@ class LibraryQuery {
     String search = '',
     LibraryFilter filter = LibraryFilter.all,
     LibrarySort sort = LibrarySort.recent,
+    String? collectionId,
   }) {
     final q = search.trim().toLowerCase();
     final list = books.where((b) {
+      if (collectionId != null && !b.collectionIds.contains(collectionId)) {
+        return false;
+      }
       if (!filter.matches(b)) return false;
       if (q.isEmpty) return true;
       final title = b.title.toLowerCase();

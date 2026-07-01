@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 
 import '../models/book.dart';
@@ -10,9 +11,11 @@ import '../theme/library_options.dart';
 import '../theme/paper_palette.dart';
 import '../widgets/book_grid_tile.dart';
 import '../widgets/book_options_sheet.dart';
+import '../widgets/collection_picker_sheet.dart';
 import '../widgets/continue_reading_card.dart';
 import '../widgets/edit_book_sheet.dart';
 import '../widgets/library_stats_sheet.dart';
+import '../widgets/manage_collections_sheet.dart';
 import '../widgets/paper_picker_sheet.dart';
 import 'reader_router.dart';
 import 'settings_screen.dart';
@@ -44,6 +47,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
   late LibraryFilter _filter = widget.settings.libraryFilter;
   late LibrarySort _sort = widget.settings.librarySort;
 
+  /// The collection currently scoping the shelf, or null for all books.
+  String? _collectionId;
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -61,11 +67,18 @@ class _LibraryScreenState extends State<LibraryScreen> {
           final all = widget.library.books;
           if (all.isEmpty) return _EmptyState(palette: p);
 
+          // Drop a stale scope if its collection was deleted.
+          if (_collectionId != null &&
+              widget.library.collectionById(_collectionId!) == null) {
+            _collectionId = null;
+          }
+
           final visible = LibraryQuery.apply(
             all,
             search: _search,
             filter: _filter,
             sort: _sort,
+            collectionId: _collectionId,
           );
           final continueBook = _continueBook(all);
 
@@ -78,6 +91,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             onOptions: _openOptions,
             searching: _search.trim().isNotEmpty,
             filter: _filter,
+            inCollection: _collectionId != null,
           );
         },
       ),
@@ -176,6 +190,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
         palette: p,
         filter: _filter,
         sort: _sort,
+        collections: widget.library.collections,
+        collectionId: _collectionId,
         onFilter: (f) {
           setState(() => _filter = f);
           widget.settings.setLibraryFilter(f);
@@ -184,6 +200,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
           setState(() => _sort = s);
           widget.settings.setLibrarySort(s);
         },
+        onCollection: (id) => setState(() => _collectionId = id),
+        onManage: () => ManageCollectionsSheet.show(
+          context,
+          library: widget.library,
+          palette: p,
+        ),
       ),
     );
   }
@@ -261,6 +283,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
         await widget.library.setReadStatus(book, finished: finishing);
         _snack(finishing ? 'Marked as finished' : 'Marked as unread');
       },
+      onAddToCollections: () => CollectionPickerSheet.show(
+        context,
+        book: book,
+        library: widget.library,
+        palette: p,
+      ),
       onRemove: () => _confirmDelete(book),
     );
   }
@@ -326,15 +354,25 @@ class _FilterBar extends StatelessWidget implements PreferredSizeWidget {
     required this.palette,
     required this.filter,
     required this.sort,
+    required this.collections,
+    required this.collectionId,
     required this.onFilter,
     required this.onSort,
+    required this.onCollection,
+    required this.onManage,
   });
 
   final PaperPalette palette;
   final LibraryFilter filter;
   final LibrarySort sort;
+  final List<Collection> collections;
+  final String? collectionId;
   final ValueChanged<LibraryFilter> onFilter;
   final ValueChanged<LibrarySort> onSort;
+  final ValueChanged<String?> onCollection;
+  final VoidCallback onManage;
+
+  static const _manageValue = '__manage__';
 
   @override
   Size get preferredSize => const Size.fromHeight(52);
@@ -342,14 +380,93 @@ class _FilterBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final p = palette;
+    final current = collectionId == null
+        ? null
+        : collections.firstWhereOrNull((c) => c.id == collectionId);
+    final currentLabel = current?.name ?? 'All books';
     return SizedBox(
       height: 52,
       child: Row(
         children: [
+          const SizedBox(width: PapyrTheme.space4),
+          PopupMenuButton<String?>(
+            tooltip: 'Collections',
+            color: p.surface,
+            onSelected: (value) {
+              if (value == _manageValue) {
+                onManage();
+              } else {
+                onCollection(value);
+              }
+            },
+            itemBuilder: (context) => [
+              CheckedPopupMenuItem<String?>(
+                value: null,
+                checked: collectionId == null,
+                child: Text('All books',
+                    style: PapyrTheme.ui(p.inkPrimary, size: 14)),
+              ),
+              for (final c in collections)
+                CheckedPopupMenuItem<String?>(
+                  value: c.id,
+                  checked: c.id == collectionId,
+                  child: Text(c.name,
+                      style: PapyrTheme.ui(p.inkPrimary, size: 14)),
+                ),
+              const PopupMenuDivider(),
+              PopupMenuItem<String?>(
+                value: _manageValue,
+                child: Text('Manage collections',
+                    style: PapyrTheme.ui(p.accent, size: 14)),
+              ),
+            ],
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: PapyrTheme.space3, vertical: PapyrTheme.space2),
+              decoration: BoxDecoration(
+                color: current != null ? p.accent : p.surface,
+                borderRadius: BorderRadius.circular(PapyrTheme.radiusLg),
+                border: Border.all(
+                    color: current != null ? p.accent : p.divider),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.collections_bookmark_outlined,
+                      size: 16,
+                      color: current != null ? p.onAccent : p.inkSecondary),
+                  const SizedBox(width: PapyrTheme.space1),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 110),
+                    child: Text(
+                      currentLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: PapyrTheme.ui(
+                        current != null ? p.onAccent : p.inkSecondary,
+                        size: 13,
+                        weight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Icon(Icons.arrow_drop_down,
+                      size: 18,
+                      color: current != null ? p.onAccent : p.inkSecondary),
+                ],
+              ),
+            ),
+          ),
+          Container(
+            width: 1,
+            height: 24,
+            margin: const EdgeInsets.symmetric(horizontal: PapyrTheme.space2),
+            color: p.divider,
+          ),
           Expanded(
             child: ListView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: PapyrTheme.space4),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: PapyrTheme.space1),
               children: [
                 for (final f in LibraryFilter.values) ...[
                   _Chip(
@@ -448,6 +565,7 @@ class _Shelf extends StatelessWidget {
     required this.onOptions,
     required this.searching,
     required this.filter,
+    required this.inCollection,
   });
 
   final List<Book> books;
@@ -458,13 +576,16 @@ class _Shelf extends StatelessWidget {
   final ValueChanged<Book> onOptions;
   final bool searching;
   final LibraryFilter filter;
+  final bool inCollection;
 
   @override
   Widget build(BuildContext context) {
     // The continue-reading banner only makes sense on the unfiltered, unsearched
     // shelf — otherwise it duplicates or contradicts what's shown below.
-    final showBanner =
-        continueBook != null && !searching && filter == LibraryFilter.all;
+    final showBanner = continueBook != null &&
+        !searching &&
+        !inCollection &&
+        filter == LibraryFilter.all;
 
     if (books.isEmpty) {
       return _NoResults(palette: palette, searching: searching);

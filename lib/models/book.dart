@@ -60,7 +60,9 @@ class Book extends HiveObject {
     this.lastOpenedAt,
     List<Bookmark>? bookmarks,
     this.contentHash,
-  }) : bookmarks = bookmarks ?? <Bookmark>[];
+    List<String>? collectionIds,
+  })  : bookmarks = bookmarks ?? <Bookmark>[],
+        collectionIds = collectionIds ?? <String>[];
 
   /// Stable unique id (uuid v4). Also used to name the cover file.
   @HiveField(0)
@@ -108,9 +110,34 @@ class Book extends HiveObject {
   @HiveField(12)
   String? contentHash;
 
+  /// Ids of the collections this book belongs to. A book can be in many
+  /// collections at once (tag-style membership).
+  @HiveField(13, defaultValue: <String>[])
+  List<String> collectionIds;
+
   bool get hasStarted => progress > 0.0;
   bool get isFinished => progress >= 0.999;
 
   /// Whole-number percent for display (e.g. "37%").
   int get progressPercent => (progress.clamp(0.0, 1.0) * 100).round();
+}
+
+/// A user-defined collection (a named shelf). Books reference collections by
+/// [id]; a book can belong to any number of them.
+@HiveType(typeId: 3)
+class Collection extends HiveObject {
+  Collection({
+    required this.id,
+    required this.name,
+    required this.createdAt,
+  });
+
+  @HiveField(0)
+  final String id;
+
+  @HiveField(1)
+  String name;
+
+  @HiveField(2)
+  final DateTime createdAt;
 }
